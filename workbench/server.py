@@ -78,6 +78,13 @@ class WorkbenchHTTPServer(ThreadingHTTPServer):
         self.bootstrapper = bootstrapper
         super().__init__(address, _Handler)
 
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """浏览器关闭标签页会直接掐断 keep-alive 连接，这类断连不算服务错误。"""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
 
 def make_server(
     config: Any,

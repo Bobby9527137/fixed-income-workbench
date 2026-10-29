@@ -5,6 +5,7 @@ import threading
 import unittest
 import urllib.request
 from http.server import ThreadingHTTPServer
+from unittest import mock
 
 import app
 
@@ -12,7 +13,7 @@ import app
 class ServerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        cls.httpd = app.QuietThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
         cls.port = cls.httpd.server_address[1]
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
         cls.thread.start()
@@ -79,6 +80,31 @@ class ServerTest(unittest.TestCase):
         status, data = self._post("/api/render", {"fields": fields})
         self.assertEqual(status, 200)
         self.assertTrue(data["output"].startswith("1029+0 上市要素："))
+
+
+class ClientDisconnectTest(unittest.TestCase):
+    """浏览器断连不应把 traceback 打进终端。"""
+
+    def _server(self) -> app.QuietThreadingHTTPServer:
+        return object.__new__(app.QuietThreadingHTTPServer)
+
+    def test_connection_reset_is_ignored(self) -> None:
+        httpd = self._server()
+        with mock.patch.object(ThreadingHTTPServer, "handle_error") as parent:
+            try:
+                raise ConnectionResetError(10054, "forcibly closed")
+            except ConnectionResetError:
+                httpd.handle_error(None, ("127.0.0.1", 0))
+            parent.assert_not_called()
+
+    def test_other_errors_still_reported(self) -> None:
+        httpd = self._server()
+        with mock.patch.object(ThreadingHTTPServer, "handle_error") as parent:
+            try:
+                raise ValueError("boom")
+            except ValueError:
+                httpd.handle_error(None, ("127.0.0.1", 0))
+            parent.assert_called_once()
 
 
 if __name__ == "__main__":

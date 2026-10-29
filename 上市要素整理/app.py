@@ -37,6 +37,18 @@ STATIC_TYPES = {
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
 
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """浏览器关闭标签页会直接掐断 keep-alive 连接，这类断连不算服务错误。"""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address) -> None:
+        exc = sys.exc_info()[1]
+        if isinstance(exc, ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
+
 def _reconfigure() -> None:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -184,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
 
     port = find_free_port(args.host, args.port)
     url = f"http://{args.host}:{port}/"
-    httpd = ThreadingHTTPServer((args.host, port), Handler)
+    httpd = QuietThreadingHTTPServer((args.host, port), Handler)
     print(f"上市要素整理已启动：{url}")
     print("按 Ctrl-C 停止。")
     if not args.no_browser:

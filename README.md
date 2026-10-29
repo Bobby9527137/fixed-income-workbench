@@ -20,7 +20,7 @@
 
 ## 下载与运行
 
-1. 到 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.1.0.zip`。
+1. 到 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.1.1.zip`。
 2. 解压到本地目录（桌面、「应用程序」等均可）。
 3. 首次运行：在 Finder 里**右键** `启动工作台.command` → **打开** → 再点一次**打开**。
 4. 首次启动会解压内置 Python 并创建运行环境，约 1–3 分钟；之后双击秒开。
