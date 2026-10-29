@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>固收工作台</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <h1 class="brand-title">固收工作台</h1>
+      </div>
+      <p id="status-summary" class="status-summary">正在连接工作台…</p>
+      <div class="topbar-actions">
+        <button id="start-all" class="btn btn-small" type="button">全部启动</button>
+        <button id="stop-all" class="btn btn-small btn-quiet" type="button">全部停止</button>
+        <button id="exit-workbench" class="btn btn-quiet" type="button">退出工作台</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" role="alert" hidden>
+      <span id="notice-text" class="notice-text"></span>
+      <button id="notice-close" class="notice-close" type="button" aria-label="关闭提示">关闭</button>
+    </div>
+
+    <section id="bootstrap-progress" class="bootstrap" aria-label="首次初始化进度" hidden>
+      <div class="bootstrap-head">
+        <h2 class="section-title">首次初始化</h2>
+        <p class="bootstrap-note">首次启动需要准备运行环境，请保持此页打开。</p>
+      </div>
+      <ol id="bootstrap-steps" class="bootstrap-steps"></ol>
+      <button id="rebuild-envs" class="btn btn-small" type="button" hidden>重建未就绪环境</button>
+    </section>
+
+    <main class="layout">
+      <aside class="sidebar" aria-label="工具列表">
+        <div class="section-head">
+          <h2 class="section-title">工具</h2>
+          <p class="section-note">点击卡片可在右侧操作</p>
+        </div>
+        <div id="tool-list" class="tool-list" aria-live="polite"></div>
+        <p id="tool-empty" class="empty-note" hidden>没有可用的工具配置。</p>
+      </aside>
+
+      <section class="stage" aria-label="工具界面预留区域">
+        <div class="reserved-stage">
+          <p class="reserved-title">工具界面预留区域</p>
+          <p class="reserved-hint">
+            当前版本请点卡片上的「打开」，在浏览器新标签页里使用工具。
+          </p>
+          <p class="reserved-note">
+            这里已为下一版的内嵌界面预留位置，暂时保持留白。
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <section class="panel recent-panel" aria-labelledby="recent-title">
+        <div class="section-head">
+          <h2 id="recent-title" class="section-title">最近产物</h2>
+          <p class="section-note">点击文件名可在 Finder 中定位</p>
+        </div>
+        <ul id="recent-files" class="recent-files"></ul>
+        <p id="file-hint" class="hint" aria-live="polite"></p>
+      </section>
+
+      <section class="panel dir-panel" aria-labelledby="dir-title">
+        <div class="section-head">
+          <h2 id="dir-title" class="section-title">输出目录</h2>
+          <p class="section-note">在 Finder / 资源管理器中打开</p>
+        </div>
+        <button id="open-dir" class="btn" type="button">在 Finder 中显示</button>
+        <p id="dir-hint" class="hint" aria-live="polite"></p>
+      </section>
+    </footer>
+  </div>
+
+  <dialog id="log-dialog" class="log-dialog" aria-labelledby="log-title">
+    <div class="log-dialog-head">
+      <h2 id="log-title" class="section-title">日志</h2>
+      <form method="dialog">
+        <button id="log-close" class="btn btn-small" type="submit">关闭</button>
+      </form>
+    </div>
+    <pre id="log-text" class="log-text"></pre>
+  </dialog>
+
+  <noscript>
+    <p class="noscript">这个页面需要启用 JavaScript 才能操作工具。</p>
+  </noscript>
+  <script src="app.js" defer></script>
+</body>
+</html>

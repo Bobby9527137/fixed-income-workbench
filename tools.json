@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "workbench": {
+    "port": 8787
+  },
+  "platform": {
+    "darwin": {
+      "pythonArchive": "runtime/python/cpython-3.12.15+20261021-aarch64-apple-darwin-install_only.tar.gz"
+    }
+  },
+  "environments": {
+    "streamlit": {
+      "requirements": {
+        "darwin": "requirements/streamlit-mac.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312"
+      },
+      "probe": [
+        "streamlit",
+        "pandas",
+        "openpyxl"
+      ]
+    },
+    "bidbook": {
+      "requirements": {
+        "darwin": "requirements/bidbook-mac.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312"
+      },
+      "probe": [
+        "fastapi",
+        "uvicorn",
+        "cv2",
+        "numpy"
+      ]
+    },
+    "stdlib": {
+      "requirements": {
+        "darwin": "requirements/stdlib-mac.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312"
+      },
+      "probe": []
+    }
+  },
+  "tools": [
+    {
+      "id": "bondtable",
+      "name": "境内债制表",
+      "desc": "地方债 / 信用债原始表 → 标准制表 + 待发行播报",
+      "root": "./境内债制表工具",
+      "kind": "streamlit",
+      "entry": "scripts/app.py",
+      "environment": "streamlit",
+      "port": 8511,
+      "healthPath": "/_stcore/health",
+      "dirs": {
+        "原始数据": "data/原始数据",
+        "输出": "data/输出"
+      }
+    },
+    {
+      "id": "bidbook",
+      "name": "投标簿记提取",
+      "desc": "投标量表截图 + 债券文本行 → 标准簿记文案",
+      "root": "./bidbook_tool",
+      "kind": "python-entry",
+      "entry": "app.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "bidbook",
+      "port": 8765,
+      "healthPath": "/",
+      "dirs": {}
+    },
+    {
+      "id": "wacc",
+      "name": "WACC 批量计算",
+      "desc": "上传表格或手动录入，批量算加权平均资本成本",
+      "root": "./wacc-tool",
+      "kind": "streamlit",
+      "entry": "app.py",
+      "environment": "streamlit",
+      "port": 8512,
+      "healthPath": "/_stcore/health",
+      "dirs": {}
+    },
+    {
+      "id": "listing",
+      "name": "上市要素整理",
+      "desc": "任意排版的要素文本 → 固定模版（本地规则，无模型）",
+      "root": "./上市要素整理",
+      "kind": "python-entry",
+      "entry": "app.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "stdlib",
+      "port": 8513,
+      "healthPath": "/",
+      "dirs": {}
+    }
+  ]
+}

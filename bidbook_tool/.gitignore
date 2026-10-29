@@ -1,0 +1,16 @@
+# 自动生成的虚拟环境（本机专用，删掉后下次运行会重建）
+.venv/
+.venv-*/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 打包产物（python package.py）
+dist/
+
+# 运行时产物
+.env-stamp.json
+*.log
+bidbook_*.png
+pip-*/

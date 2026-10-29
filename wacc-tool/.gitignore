@@ -1,0 +1,11 @@
+.venv-macos/
+.venv-windows/
+__pycache__/
+*.py[cod]
+launcher-*.log
+.wacc-macos.pid
+.wacc-macos.port
+WACC计算工具-macOS版.zip
+WACC计算工具-Windows版.zip
+.DS_Store
+Thumbs.db

@@ -1,0 +1,4 @@
+# macOS 脚本必须保持 LF 行尾，否则 bash 会报 “bad interpreter”
+*.command text eol=lf
+*.sh text eol=lf
+launcher_support.py text eol=lf

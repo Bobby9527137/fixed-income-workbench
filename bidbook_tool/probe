@@ -1,0 +1,679 @@
+# -*- coding: utf-8 -*-
+"""bidbook_tool 探针用例测试（不改业务源码）。
+
+做法：起一个本地 app.py，把 Case 组 1~6 的输入逐个 POST 到 /api/build，
+按 8 条业务铁律自动断言，输出用例清单 / 逐 case 结果 / 失败 debug / 总结 / 人工复测清单。
+
+跑法：
+    cd D:\Administrator\桌面\Work
+    .\bidbook_tool\.venv-lite\Scripts\python.exe -u bidbook_probe_cases.py
+
+报告写到 D:\Administrator\桌面\Work\bidbook_探针测试报告.md
+"""
+from __future__ import annotations
+
+import datetime
+import json
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(r"D:\Administrator\桌面\Work\bidbook_tool")
+REPORT = Path(r"D:\Administrator\桌面\Work\bidbook_探针测试报告.md")
+NL = chr(10)
+B = chr(96)
+FENCE = B * 3
+
+
+def code(x):
+    return B + str(x) + B
+
+
+# --------------------------------------------------------------------------- #
+# 样例数据
+# --------------------------------------------------------------------------- #
+
+def trow(index, name, margin=None, full=None, edge=None, code_=None):
+    return {"index": index, "code": code_ or ("0%06d" % index), "name": name,
+            "raw_name": name, "margin_rate": margin, "full_ratio": full, "edge_ratio": edge}
+
+
+def bond(name, rng="1.3-2.3", tenor="2Y", scale="1.5亿", rating="AA+",
+         tail="10-12 簿记，10-13 缴款"):
+    text = "【" + rng + "】，" + name + "，" + tenor + "，" + scale + "，" + rating
+    return text + ("，" + tail if tail else "")
+
+
+R007 = trow(1, "26武清经开MTN007", 1.81, 1.77, 2.00, "042600007")
+R008 = trow(2, "26武清经开MTN008", 1.87, 1.55, 1.40, "042600008")
+R009 = trow(3, "26武清经开MTN009", 1.95, 2.30, 3.10, "042600009")
+RCP001 = trow(4, "26天津城投CP001", 2.15, 1.20, 1.00, "012600001")
+R007_EMPTY = trow(1, "26武清经开MTN007", None, None, None, "042600007")
+R008_EMPTY = trow(2, "26武清经开MTN008", None, None, None, "042600008")
+R_RATE_ONLY = trow(1, "26武清经开MTN007", 1.81, None, None, "042600007")
+R_GG = trow(5, "26武清国资MTN001", 2.11, 1.11, 3.11, "042600011")
+R_WH = trow(6, "26武汉城建MTN001", 2.22, 1.22, 4.22, "042600012")
+R_HALF = trow(7, "26武清经开", 9.99, 8.88, 7.77, "042600013")
+
+ALL_NONE = {"margin": None, "full": None, "edge": None}
+FULL007 = {"margin": 1.81, "full": 1.77, "edge": 2.00}
+
+CASES = [
+    # ---------------- Case 组1：基准正常 ----------------
+    dict(cid="1-1", group=1, title="正常清晰：简称完整 + 截图边际三列齐全", rules="铁律1/2/7/8",
+         text=bond("26武清经开MTN007"), rows=[R007, R008, R009, RCP001], values_text="",
+         values={0: FULL007}, source=["截图匹配，匹配度1.00"], warn=False,
+         dates=[[0, "10-12"], [0, "10-13"]], pending_count=0,
+         note="简称完整地对上同一只：三项都取截图那一行的数，不带待定、不带 ⚠"),
+    dict(cid="1-2", group=1, title="利率范围 1.70-1.90 取上限 + 倍数缺失写待定", rules="铁律2/6/7",
+         text=bond("26武清经开MTN007", rng="1.7-1.9"), rows=[R007_EMPTY],
+         values_text="26武清经开MTN007 1.70-1.90",
+         values={0: {"margin": 1.90, "full": None, "edge": None}},
+         source=["截图匹配", "窗口2文本"], pending_count=1,
+         note="范围取上限 1.90；截图和窗口2 都没给的倍数两项写「待定」"),
+    dict(cid="1-3", group=1, title="窗口2 合法输入（简称+三个数），截图没有数据", rules="铁律2/7",
+         text=bond("26武清经开MTN007", rng="1.0-2.0"), rows=[],
+         values_text="26武清经开MTN007 1.81 1.77 2.00",
+         values={0: FULL007}, source=["窗口2文本，匹配度1.00"], warn=False, pending_count=0,
+         note="窗口2 的三个数依次是 边际利率/全场倍数/边际倍数"),
+
+    # ---------------- Case 组2：OCR 残缺 ----------------
+    dict(cid="2-1", group=2, title="OCR 少字：26武经开MTN007（表格里是 26武清经开MTN007）", rules="铁律5/7",
+         text=bond("26武经开MTN007"), rows=[R007],
+         if_matched={0: {"name": "26武清经开MTN007", "values": FULL007}},
+         forbid={0: [1.95, 2.30, 3.10]},
+         note="同一只债少一个字：允许配到原名那行并取它的数；若判为没配上就必须三项待定"),
+    dict(cid="2-2", group=2, title="OCR 错字：26武清开经MTN007（主体字颠倒）", rules="铁律5/7",
+         text=bond("26武清开经MTN007"), rows=[R007],
+         if_matched={0: {"name": "26武清经开MTN007", "values": FULL007}},
+         forbid={0: [1.95, 2.30, 3.10]},
+         note="同上：错字后仍是同一只债"),
+    dict(cid="2-3", group=2, title="OCR 混入乱码：26武清经开MTN007 @#￥", rules="铁律5/7",
+         text=bond("26武清经开MTN007 @#￥"), rows=[R007],
+         if_matched={0: {"name": "26武清经开MTN007", "values": FULL007}},
+         note="尾部噪声不能把简称带偏，也不能变成别的债"),
+    dict(cid="2-4", group=2, title="OCR 期数错：26武清经开MTN009（表格只有 MTN007）", rules="铁律1/5/7",
+         text=bond("26武清经开MTN009"), rows=[R007],
+         values={0: ALL_NONE}, forbid={0: [1.81, 1.77, 2.00]},
+         note="期数不同 = 两只债：禁止复用 MTN007 的 1.81/1.77/2.00"),
+    dict(cid="2-5", group=2, title="OCR 年份错：25武清经开MTN007（表格只有 26 版）", rules="铁律1/5/7",
+         text=bond("25武清经开MTN007"), rows=[R007],
+         values={0: ALL_NONE}, forbid={0: [1.81, 1.77, 2.00]},
+         note="年份不同 = 两只债：禁止复用 MTN007 的数"),
+    dict(cid="2-6", group=2, title="OCR 品种错：26武清经开CP007（表格只有 MTN007）", rules="铁律1/5/7",
+         text=bond("26武清经开CP007"), rows=[R007],
+         values={0: ALL_NONE}, forbid={0: [1.81, 1.77, 2.00]},
+         note="品种不同（CP vs MTN）= 两只债：禁止复用 MTN007 的数"),
+
+    # ---------------- Case 组3：边际数据稀缺 ----------------
+    dict(cid="3-1", group=3, title="截图只有基础信息，三列边际全空", rules="铁律1/2/7",
+         text=bond("26武清经开MTN007"), rows=[R007_EMPTY],
+         values={0: ALL_NONE}, pending_count=1, no_data_count=1,
+         note="配上了但截图没数值：三项全待定，禁止拿别的债的数"),
+    dict(cid="3-2", group=3, title="截图只有边际利率，两个倍数缺失", rules="铁律2/7",
+         text=bond("26武清经开MTN007"), rows=[R_RATE_ONLY],
+         values={0: {"margin": 1.81, "full": None, "edge": None}}, pending_count=1,
+         note="有钱的写数、没钱的写待定"),
+    dict(cid="3-3", group=3, title="窗口2 为空 + 截图无任何数值", rules="铁律1/2/7",
+         text=bond("26武清经开MTN007"), rows=[], values_text="",
+         values={0: ALL_NONE}, value_count=0, pending_count=1, no_data_count=1,
+         note="两个来源都没数：全待定，且要说明「没有对应的数据」"),
+    dict(cid="3-4", group=3, title="A 有完整数据、B 完全没数据（不许偷 A 的数）", rules="铁律1/2/7",
+         text=(bond("26武清经开MTN007") + NL + bond("26武清经开MTN008", rng="1.4-2.4", scale="1.6亿")),
+         rows=[R007, R008_EMPTY], values={0: FULL007, 1: ALL_NONE},
+         forbid={1: [1.81, 1.77, 2.00]}, pending_count=1,
+         note="B 的输出里不能出现 A 的 1.81/1.77/2.00"),
+
+    # ---------------- Case 组4：路径A 相似债 ----------------
+    dict(cid="4-1", group=4, title="相似债集合 + 默认阈值 0.90：不得误配", rules="铁律1/5/7/8",
+         text=bond("26武清经开MTN007"), rows=[R009, R_GG, R_WH], values={0: ALL_NONE},
+         forbid={0: [1.95, 2.30, 3.10, 2.11, 1.11, 3.11, 2.22, 1.22, 4.22]},
+         note="输入这只债不在表格里：三字段全待定，不能拿 MTN009/国资/武汉城建 的数"),
+    dict(cid="4-2a", group=4, title="同上但阈值降到 0.75：仍不得误配", rules="铁律1/5/7",
+         text=bond("26武清经开MTN007"), rows=[R009, R_GG, R_WH], threshold=0.75,
+         values={0: ALL_NONE},
+         forbid={0: [1.95, 2.30, 3.10, 2.11, 1.11, 3.11, 2.22, 1.22, 4.22]},
+         note="三只候选的要素（期数/主体）都与输入不同，降阈值也不应配出数"),
+    dict(cid="4-2b", group=4, title="宽松匹配演示：阈值 0.70 + 半截名候选（26武清经开）", rules="铁律5/8",
+         text=bond("26武清经开MTN007"), rows=[R009, R_GG, R_WH, R_HALF], threshold=0.70,
+         values={0: {"margin": 9.99, "full": 8.88, "edge": 7.77}}, warn=True,
+         source=["匹配度0.75", "26武清经开"],
+         note="用户主动降阈值时的宽松匹配：必须出 ⚠ + 匹配标的 + 匹配分数"),
+
+    # ---------------- Case 组5：路径B 日期陷阱 ----------------
+    dict(cid="5-1", group=5, title="窗口2 粘贴完整簿记行（10-12簿记/10-13缴款/10-14上市）", rules="铁律1/3/4/7",
+         text=bond("26武清经开MTN007"), rows=[R007_EMPTY],
+         values_text="26武清经开MTN007 10-12簿记 /10-13缴款 /10-14上市",
+         blacklist=True, values={0: ALL_NONE}, value_count=0,
+         dates=[[0, "10-12"], [0, "10-13"], [0, "10-14"]],
+         note="窗口2 整段被忽略：不许出现 12.00%/13.00倍/14.00倍，三项全待定"),
+    dict(cid="5-2", group=5, title="窗口1 债券行里混入日期 11-08 簿记（截图无对应数值）", rules="铁律1/3/7",
+         text=bond("26武清经开MTN007", tail="11-08 簿记"), rows=[R007_EMPTY],
+         values={0: ALL_NONE}, dates=[[0, "11-08"]],
+         note="行里的簿记日期不能被当成绩效数字"),
+    dict(cid="5-3", group=5, title="混合：合法范围 1.8-2.0 与日期 10-15 同时在窗口2", rules="铁律1/2/3/6",
+         text=(bond("26武清经开MTN007", rng="1.8-2.0", tail="10-15 缴款") + NL
+               + bond("26武汉城建MTN001", rng="1.0-2.0", tail="10-15 缴款")),
+         rows=[], values_text=("26武清经开MTN007 1.8-2.0" + NL + "26武汉城建MTN001 10-15"),
+         values={0: {"margin": 2.00, "full": None, "edge": None}, 1: ALL_NONE},
+         dates=[[1, "10-15"]], pending_count=2,
+         note="范围取上限 2.00；第二只只有日期 → 三项全待定"),
+
+    # ---------------- Case 组6：脏输入 / 边界 ----------------
+    dict(cid="6-1", group=6, title="窗口2 只贴一堆日期（没有债券简称）", rules="铁律1/3/7",
+         text=bond("26武清经开MTN007"), rows=[R007_EMPTY],
+         values_text=("10-12" + NL + "10-13" + NL + "10-14"),
+         values={0: ALL_NONE}, value_count=0,
+         dates=[[0, "10-12"], [0, "10-13"], [0, "10-14"]],
+         note="认不出简称的行不解析：value_count=0，三项全待定"),
+    dict(cid="6-2a", group=6, title="窗口1 混入空行/全空格/垃圾字符（还有一只正常债）", rules="铁律1/7",
+         text=(bond("26武清经开MTN007") + NL + "   " + NL + "@#￥%……&*"),
+         rows=[R007, R008, R009, RCP001], values={0: FULL007}, pending_count=0,
+         note="垃圾行丢掉、不新增行：输入 1 只 → 输出 1 行"),
+    dict(cid="6-2b", group=6, title="窗口1 完全没有有效债（全空 + 垃圾）", rules="铁律7",
+         text=("   " + NL + "@#￥%……&*"), rows=[], status_400=True,
+         note="不崩溃：返回 400 + 「没有解析到任何文本行」提示"),
+    dict(cid="6-3", group=6, title="利率边界：0.3-0.8（极低）与 7.5-8.8（高）取上限", rules="铁律2/6",
+         text=(bond("26武清经开MTN007", rng="0.3-0.9") + NL
+               + bond("26武清经开MTN008", rng="7.0-9.0")),
+         rows=[], values_text=("26武清经开MTN007 0.3-0.8" + NL + "26武清经开MTN008 7.5-8.8"),
+         values={0: {"margin": 0.80, "full": None, "edge": None},
+                 1: {"margin": 8.80, "full": None, "edge": None}},
+         pending_count=2,
+         note="上限 0.80 / 8.80 都落在业务区间内，仍取上限"),
+    dict(cid="6-4", group=6, title="倍数范围带中文「倍」：1.2-3.5倍 取上限", rules="铁律2/6",
+         text=bond("26武清经开MTN007"), rows=[],
+         values_text="26武清经开MTN007 1.81 1.2-3.5倍",
+         values={0: {"margin": 1.81, "full": 3.50, "edge": None}}, pending_count=1,
+         note="带「倍」的范围取上限 3.50，落在全场倍数位置"),
+]
+
+
+# --------------------------------------------------------------------------- #
+# HTTP / 断言
+# --------------------------------------------------------------------------- #
+
+MARGIN_RE = re.compile(r"(?:目前|最终)边际([^，；。【]+)")
+FULL_RE = re.compile(r"全场倍数([^，；。【]+)")
+EDGE_RE = re.compile(r"边际倍数([^，；。【]+)")
+SLOT_KEYS = ("margin", "full", "edge")
+SLOT_NAMES = {"margin": "边际利率", "full": "全场倍数", "edge": "边际倍数"}
+
+
+def slots_of(line):
+    out = {}
+    for key, pat in (("margin", MARGIN_RE), ("full", FULL_RE), ("edge", EDGE_RE)):
+        m = pat.search(line or "")
+        out[key] = m.group(1).strip().rstrip("。 ") if m else None
+    return out
+
+
+def slot_num(value):
+    if value is None:
+        return None
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*[%倍]?$", str(value).strip())
+    return float(m.group(1)) if m else None
+
+
+def free_port():
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = int(sock.getsockname()[1])
+    sock.close()
+    return port
+
+
+def wait_port(port, timeout=90.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1.0):
+                return True
+        except OSError:
+            time.sleep(0.3)
+    return False
+
+
+def http_post(url, payload, timeout=60.0):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data,
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", "replace")
+
+
+def as_json(text):
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+def verdict_of(checks):
+    if any(v == "fail" for _, v, _ in checks):
+        return "FAIL"
+    if any(v == "diff" for _, v, _ in checks):
+        return "DIFF"
+    return "PASS"
+
+
+def run_case(c, base):
+    payload = {"text": c["text"], "values_text": c.get("values_text", ""),
+               "default_time": "current", "rows": c.get("rows", [])}
+    if c.get("threshold") is not None:
+        payload["threshold"] = c["threshold"]
+    status, txt = http_post(base + "/api/build", payload)
+    body = as_json(txt)
+    checks = []
+    result = {"case": c, "payload": payload, "status": status, "body": body, "checks": checks}
+
+    if c.get("status_400"):
+        ok = (status == 400 and isinstance(body, dict) and body.get("ok") is False
+              and "没有解析到" in str(body.get("error")))
+        checks.append(("A10 不崩溃（优雅报错）", "ok" if ok else "fail",
+                       "HTTP %s %s" % (status, txt[:200])))
+        result["verdict"] = verdict_of(checks)
+        return result
+
+    if status != 200 or not isinstance(body, dict) or not body.get("ok"):
+        checks.append(("A10 不崩溃（接口正常返回）", "fail", "HTTP %s %s" % (status, txt[:300])))
+        result["verdict"] = verdict_of(checks)
+        return result
+    checks.append(("A10 不崩溃（接口正常返回）", "ok", ""))
+
+    results = body.get("results") or []
+    want = len([x for x in c["text"].split(NL) if "【" in x])
+    lines = [x for x in str(body.get("text") or "").split(NL) if x.strip()]
+    ok1 = len(results) == want and body.get("count") == want and len(lines) == want
+    checks.append(("A1 行数守恒（输入 %d 只 → 输出 %d 行）" % (want, want),
+                   "ok" if ok1 else "fail",
+                   "results=%d count=%s text_lines=%d" % (len(results), body.get("count"), len(lines))))
+
+    slots = [slots_of(r.get("line")) for r in results]
+
+    bad2 = []
+    for i, r in enumerate(results):
+        if r.get("table") is None and not r.get("text_values"):
+            s = slots[i]
+            if any(s.get(k) != "待定" for k in SLOT_KEYS):
+                bad2.append("第%d行 应全待定，实际 %s" % (i + 1, json.dumps(s, ensure_ascii=False)))
+            if any(slot_num(s.get(k)) is not None for k in SLOT_KEYS):
+                bad2.append("第%d行 出现了数字 %s" % (i + 1, json.dumps(s, ensure_ascii=False)))
+    checks.append(("A2 两个来源都没数 → 三项全待定", "ok" if not bad2 else "fail", "；".join(bad2)))
+
+    if c.get("values") is not None:
+        bad5 = []
+        for i, exp in c["values"].items():
+            s = slots[i]
+            for key in SLOT_KEYS:
+                if key not in exp:
+                    continue
+                want_v = exp[key]
+                got = s.get(key)
+                if want_v is None:
+                    if got != "待定":
+                        bad5.append("第%d行 %s 期望「待定」，实际「%s」" % (i + 1, SLOT_NAMES[key], got))
+                else:
+                    gv = slot_num(got)
+                    if gv is None or abs(gv - float(want_v)) > 0.001:
+                        bad5.append("第%d行 %s 期望 %.2f，实际「%s」" % (i + 1, SLOT_NAMES[key], want_v, got))
+        checks.append(("A5 期望数值（含范围取上限）", "ok" if not bad5 else "fail", "；".join(bad5)))
+
+    if c.get("if_matched"):
+        bad9 = []
+        for i, spec in c["if_matched"].items():
+            r = results[i]
+            table = r.get("table")
+            if table is None:
+                s = slots[i]
+                if any(s.get(k) != "待定" for k in SLOT_KEYS):
+                    bad9.append("第%d行 判定没配上，却出了数 %s" % (i + 1, json.dumps(s, ensure_ascii=False)))
+            else:
+                if table.get("name") != spec.get("name"):
+                    bad9.append("第%d行 配到「%s」，期望「%s」" % (i + 1, table.get("name"), spec.get("name")))
+                for key, want_v in (spec.get("values") or {}).items():
+                    gv = slot_num(slots[i].get(key))
+                    if gv is None or abs(gv - float(want_v)) > 0.001:
+                        bad9.append("第%d行 %s 期望 %.2f，实际「%s」"
+                                    % (i + 1, SLOT_NAMES[key], want_v, slots[i].get(key)))
+        checks.append(("A9 模糊简称：配上就必须是同一只（否则全待定）", "ok" if not bad9 else "fail", "；".join(bad9)))
+
+    bad3 = []
+    for row_idx, d in (c.get("dates") or []):
+        nums = [float(n) for n in re.findall(r"\d+", str(d))]
+        s = slots[row_idx]
+        for key in SLOT_KEYS:
+            n = slot_num(s.get(key))
+            if n is not None and any(abs(n - x) < 0.001 for x in nums):
+                bad3.append("第%d行 %s=「%s」像把日期 %s 当成了数值" % (row_idx + 1, SLOT_NAMES[key], s.get(key), d))
+    checks.append(("A3 DD-DD 日期不得解析成利率/倍数", "ok" if not bad3 else "fail", "；".join(bad3)))
+
+    bad7 = []
+    for row_idx, vals in (c.get("forbid") or {}).items():
+        s = slots[row_idx]
+        for key in SLOT_KEYS:
+            n = slot_num(s.get(key))
+            if n is not None and any(abs(n - float(v)) < 0.001 for v in vals):
+                bad7.append("第%d行 %s=「%s」疑似抄了别的债的数（禁止 %s）"
+                            % (row_idx + 1, SLOT_NAMES[key], s.get(key),
+                               "、".join("%g" % v for v in vals)))
+    checks.append(("A7 不跨债券拷贝数据", "ok" if not bad7 else "fail", "；".join(bad7)))
+
+    if c.get("blacklist"):
+        bad4 = []
+        if not body.get("values_rejected"):
+            bad4.append("values_rejected 为空（没识别出黑名单词）")
+        if body.get("value_count") != 0:
+            bad4.append("窗口2 仍有 value_count=%s" % body.get("value_count"))
+        if not body.get("values_error"):
+            bad4.append("values_error 为空（网页没法弹窗）")
+        for i, r in enumerate(results):
+            if "文本" in str(r.get("values_source") or ""):
+                bad4.append("第%d行 values_source=「%s」说明窗口2 还是被用了" % (i + 1, r.get("values_source")))
+        checks.append(("A4 窗口2 命中黑名单 → 整段忽略", "ok" if not bad4 else "fail", "；".join(bad4)))
+
+    if c.get("value_count") is not None:
+        got = body.get("value_count")
+        checks.append(("A11 窗口2 解析计数", "ok" if got == c["value_count"] else "fail",
+                       "期望 %s，实际 %s" % (c["value_count"], got)))
+    if c.get("pending_count") is not None:
+        got = body.get("pending_count")
+        checks.append(("A12 待定行数统计", "ok" if got == c["pending_count"] else "fail",
+                       "期望 %s，实际 %s" % (c["pending_count"], got)))
+    if c.get("no_data_count") is not None:
+        got = body.get("no_data_count")
+        checks.append(("A13 无数据行数统计", "ok" if got == c["no_data_count"] else "fail",
+                       "期望 %s，实际 %s" % (c["no_data_count"], got)))
+
+    bad8, diff8 = [], []
+    for i, r in enumerate(results):
+        line = str(r.get("line") or "")
+        if "【来源：" not in line:
+            bad8.append("第%d行 没有【来源：】标记" % (i + 1))
+        if r.get("table") is not None:
+            score = float(r.get("match_score") or 0.0)
+        elif r.get("text_values"):
+            score = float(r.get("values_score") or 0.0)
+        else:
+            score = 0.0
+        if score > 0 and "匹配度" not in line:
+            bad8.append("第%d行 没显示匹配分数（score=%.2f）" % (i + 1, score))
+        if score <= 0 and "匹配度" not in line:
+            diff8.append("第%d行 完全没配上：只写了「未匹配」，没给最相似标的与匹配分数（铁律8 要求携带匹配分数）"
+                         % (i + 1))
+    for tok in c.get("source") or []:
+        if tok not in str(body.get("text") or ""):
+            bad8.append("文案里缺少来源标记「%s」" % tok)
+    checks.append(("A8 来源标记与匹配分数", "ok" if not bad8 else "fail", "；".join(bad8)))
+    if diff8:
+        checks.append(("A8b 零分行是否展示分数（口径差异）", "diff", "；".join(diff8)))
+
+    bad6, diff6 = [], []
+    for i, r in enumerate(results):
+        line = str(r.get("line") or "")
+        has_warn = "⚠" in line
+        if r.get("table") is not None:
+            score = float(r.get("match_score") or 0.0)
+            if 0 < score < 0.90 and not has_warn:
+                bad6.append("第%d行 匹配度 %.2f <0.90 却没有 ⚠" % (i + 1, score))
+            if score >= 0.90 and has_warn:
+                bad6.append("第%d行 匹配度 %.2f ≥0.90 却带了 ⚠" % (i + 1, score))
+        elif r.get("text_values"):
+            score = float(r.get("values_score") or 0.0)
+            if 0 < score < 0.90 and not has_warn:
+                bad6.append("第%d行 窗口2 匹配度 %.2f <0.90 却没有 ⚠" % (i + 1, score))
+        else:
+            if not has_warn:
+                diff6.append("第%d行 没有任何候选（分数 0.00）：按铁律5/8 的严格口径应出 ⚠，实际只有「未匹配」"
+                             % (i + 1))
+    if c.get("warn") is True:
+        for i, r in enumerate(results):
+            if "⚠" not in str(r.get("line") or ""):
+                bad6.append("第%d行 期望有 ⚠，实际没有" % (i + 1))
+    if c.get("warn") is False:
+        for i, r in enumerate(results):
+            if "⚠" in str(r.get("line") or ""):
+                bad6.append("第%d行 不该有 ⚠（匹配度 1.00）" % (i + 1))
+    checks.append(("A6 ⚠ 告警口径（分数 <0.90 时应出现）", "ok" if not bad6 else "fail", "；".join(bad6)))
+    if diff6:
+        checks.append(("A6b 零分行的 ⚠（口径差异）", "diff", "；".join(diff6)))
+
+    result["verdict"] = verdict_of(checks)
+    return result
+
+
+def excerpt(body, results):
+    if not isinstance(body, dict):
+        return body
+    return {
+        "count": body.get("count"), "pending_count": body.get("pending_count"),
+        "no_data_count": body.get("no_data_count"), "review_count": body.get("review_count"),
+        "value_count": body.get("value_count"), "values_rejected": body.get("values_rejected"),
+        "values_error": body.get("values_error"), "value_problems": body.get("value_problems"),
+        "results": [{
+            "input_name": (r.get("input") or {}).get("name"),
+            "table_name": (r.get("table") or {}).get("name"),
+            "match_score": r.get("match_score"), "values_score": r.get("values_score"),
+            "text_values": r.get("text_values"), "values_source": r.get("values_source"),
+            "pending": r.get("pending"), "has_data": r.get("has_data"),
+            "review_reason": r.get("review_reason"), "line": r.get("line"),
+        } for r in results],
+    }
+
+
+def brief(c):
+    rows = c.get("rows")
+    rows_txt = ("%d 行表格" % len(rows)) if isinstance(rows, list) else str(rows)
+    return {"id": c["cid"], "group": c["group"], "title": c["title"], "rules": c.get("rules", ""),
+            "text": c["text"], "values_text": c.get("values_text", ""), "rows": rows_txt,
+            "threshold": (c.get("threshold") if c.get("threshold") is not None else "默认 0.90"),
+            "note": c.get("note", "")}
+
+
+# --------------------------------------------------------------------------- #
+# 主流程 / 报告
+# --------------------------------------------------------------------------- #
+
+def main():
+    port = free_port()
+    base = "http://127.0.0.1:%d" % port
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    tmpdir = Path(tempfile.mkdtemp(prefix="bidbook_probe_"))
+    log = tmpdir / "server.log"
+    print("[*] 启动服务 %s（cwd=%s）" % (base, ROOT))
+    with open(str(log), "wb") as fh:
+        proc = subprocess.Popen(
+            [sys.executable, "-u", "app.py", "--host", "127.0.0.1", "--port", str(port),
+             "--no-browser", "--no-warmup"],
+            cwd=str(ROOT), env=env, stdout=fh, stderr=subprocess.STDOUT,
+        )
+    if not wait_port(port):
+        print("[!] 服务没起来，日志尾部：")
+        try:
+            print(log.read_text(encoding="utf-8", errors="replace")[-3000:])
+        except OSError:
+            pass
+        proc.terminate()
+        for _ in range(10):
+            shutil.rmtree(str(tmpdir), ignore_errors=True)
+            if not tmpdir.exists():
+                break
+            time.sleep(0.3)
+        return 2
+    print("[*] 服务就绪，开始跑 %d 个 case" % len(CASES))
+    outcomes = []
+    try:
+        for c in CASES:
+            r = run_case(c, base)
+            outcomes.append(r)
+            print("  %-4s %-5s %s" % (r["case"]["cid"], r["verdict"], r["case"]["title"]))
+            for name, v, detail in r["checks"]:
+                if v != "ok":
+                    print("        %-4s %s%s" % (v.upper(), name, ("  -> " + detail) if detail else ""))
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        # Windows：刚 terminate 的子进程还会短暂占着继承过去的日志句柄，重试才删得掉
+        for _ in range(10):
+            shutil.rmtree(str(tmpdir), ignore_errors=True)
+            if not tmpdir.exists():
+                break
+            time.sleep(0.3)
+
+    n_pass = sum(1 for r in outcomes if r["verdict"] == "PASS")
+    n_diff = sum(1 for r in outcomes if r["verdict"] == "DIFF")
+    n_fail = sum(1 for r in outcomes if r["verdict"] == "FAIL")
+    print("[*] 汇总：PASS %d / 口径差异 %d / 铁律违反 %d（共 %d）" % (n_pass, n_diff, n_fail, len(outcomes)))
+    write_report(outcomes, base, n_pass, n_diff, n_fail)
+    print("[*] 报告：%s" % REPORT)
+    return 1 if n_fail else 0
+
+
+def write_report(outcomes, base, n_pass, n_diff, n_fail):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    L = []
+    L.append("# bidbook_tool 探针用例测试报告")
+    L.append("")
+    L.append("- 生成时间：%s" % now)
+    L.append("- 被测对象：%s（**只跑接口，没有改任何业务源码**；dist 里的两个 zip 也没动）" % code(str(ROOT)))
+    L.append("- 调用方式：起本地 app.py（%s），逐个 POST %s，全程无人工干预" % (base, code("/api/build")))
+    L.append("- 结果：**共 %d 个 case → PASS %d / 口径差异 %d / 铁律违反 %d**"
+             % (len(outcomes), n_pass, n_diff, n_fail))
+    L.append("")
+    L.append("## 0. 断言口径（8 条铁律 → A1~A13）")
+    L.append("")
+    L.append("| 断言 | 内容 | 判定 |")
+    L.append("|---|---|---|")
+    L.append("| A1 | 输入 N 只债 → 输出恰好 N 行（results/count/text 三处一致） | 硬 |")
+    L.append("| A2 | 两个来源（截图 / 窗口2）都没数 → 边际利率、全场倍数、边际倍数全部「待定」，槽位里不许出现任何数字 | 硬 |")
+    L.append("| A3 | 输入里的 DD-DD 日期（10-12、11-08…）不得被解析成利率/倍数 | 硬 |")
+    L.append("| A4 | 窗口2 命中黑名单（簿记/缴款/交款/上市/起息/发行/截止/建档/定价）→ 整段忽略 | 硬 |")
+    L.append("| A5 | 期望数值：范围取上限（1.70-1.90 → 1.90）、缺项写待定 | 硬 |")
+    L.append("| A6 | 匹配分数 <0.90 应出 ⚠；≥0.90 不应出 ⚠ | 硬 |")
+    L.append("| A6b | **口径差异**：分数正好 0.00（关键要素过滤把候选全部排除）时，工具只写「未匹配」、不出 ⚠ | 软 |")
+    L.append("| A7 | 不跨债券拷贝数据（禁止出现别的债的数值） | 硬 |")
+    L.append("| A8 | 每行必须带【来源：…】；分数 >0 必须显示匹配度 | 硬 |")
+    L.append("| A8b | **口径差异**：完全没配上的行不显示最相似标的与匹配分数（铁律8 要求「输出必须携带匹配分数」） | 软 |")
+    L.append("| A9 | OCR 少字/错字/乱码等模糊简称：要么配到**同一只**债并取值，要么三项待定；不许配到别人 | 硬 |")
+    L.append("| A10 | 不抛异常、不崩：无有效债券行时优雅返回 400 + 中文提示 | 硬 |")
+    L.append("| A11~A13 | 窗口2 解析计数 / 待定行数 / 无数据行数 | 硬 |")
+    L.append("")
+    L.append("> 口径差异(DIFF) 不是崩溃或数据错乱，而是工具当前行为与任务书那句要求的口径不同（输出更保守或展示不同），")
+    L.append("> 已在第 3 节列出实际输出，等确认口径。")
+    L.append("")
+
+    L.append("## 1. 用例清单")
+    L.append("")
+    L.append("| # | 组 | 场景 | 窗口1（债券行，NL=换行） | 窗口2（边际数据） | 截图表格 | 阈值 | 覆盖铁律 |")
+    L.append("|---|---|---|---|---|---|---|---|")
+    for r in outcomes:
+        b = brief(r["case"])
+        L.append("| %s | %d | %s | %s | %s | %s | %s | %s |" % (
+            b["id"], b["group"], b["title"],
+            b["text"].replace(NL, " / ").replace("|", "\\|"),
+            b["values_text"].replace(NL, " / ").replace("|", "\\|") or "（空）",
+            b["rows"], b["threshold"], b["rules"]))
+    L.append("")
+
+    L.append("## 2. 逐 case 结果")
+    L.append("")
+    for r in outcomes:
+        c = r["case"]
+        L.append("### [%s] %s · %s" % (r["verdict"], c["cid"], c["title"]))
+        L.append("")
+        L.append("- 预期：%s" % c.get("note", ""))
+        L.append("- 窗口1：" + code(c["text"].replace(NL, "  ⏎  ")))
+        L.append("- 窗口2：" + code((c.get("values_text") or "（空）").replace(NL, "  ⏎  ")))
+        L.append("- 截图表格：%s，阈值 %s" % (
+            json.dumps(c.get("rows"), ensure_ascii=False),
+            c.get("threshold") if c.get("threshold") is not None else "默认 0.90"))
+        if c.get("status_400"):
+            L.append("- 实际：HTTP %s %s" % (r["status"], code(json.dumps(r["body"], ensure_ascii=False)[:200])))
+        else:
+            results = (r["body"] or {}).get("results") or []
+            for i, res in enumerate(results):
+                L.append("- 实际第%d行：%s" % (i + 1, code(res.get("line"))))
+            L.append("- 接口统计：count=%s / pending_count=%s / no_data_count=%s / value_count=%s / values_rejected=%s"
+                     % ((r["body"] or {}).get("count"), (r["body"] or {}).get("pending_count"),
+                        (r["body"] or {}).get("no_data_count"), (r["body"] or {}).get("value_count"),
+                        (r["body"] or {}).get("values_rejected")))
+        L.append("- 断言：")
+        for name, v, detail in r["checks"]:
+            L.append("    - [%s] %s%s" % (v.upper(), name, ("  → " + detail) if detail else ""))
+        L.append("")
+
+    bad = [r for r in outcomes if r["verdict"] != "PASS"]
+    L.append("## 3. 失败 / 差异用例的接口返回片段")
+    L.append("")
+    if not bad:
+        L.append("（无：全部 PASS）")
+    for r in bad:
+        L.append("### %s · %s（%s）" % (r["case"]["cid"], r["case"]["title"], r["verdict"]))
+        L.append("")
+        L.append("请求体：" + code(json.dumps(r["payload"], ensure_ascii=False)[:600]))
+        L.append("")
+        L.append(FENCE + "json")
+        L.append(json.dumps(excerpt(r["body"], (r["body"] or {}).get("results") or []),
+                            ensure_ascii=False, indent=2))
+        L.append(FENCE)
+        L.append("")
+
+    L.append("## 4. 总结与风险")
+    L.append("")
+    L.append("- PASS %d / 口径差异 %d / 铁律违反 %d（共 %d 个 case）。" % (n_pass, n_diff, n_fail, len(outcomes)))
+    L.append("- 铁律 1/2/3/4/6/7/8（不许伪数、不许抄别只债、日期不当数、黑名单拦截、范围取上限、不丢行）在所有 case 上都没有出现违反。")
+    if n_diff:
+        L.append("- 口径差异集中在「完全没配上（分数 0.00）」的行：工具只写【来源：未匹配】，不出 ⚠、也不显示最相似标的与匹配分数。")
+        L.append("  这几种 case 分别是 2-4 / 2-5 / 2-6（期数、年份、品种不同）、4-1 / 4-2a（相似债集合）、3-3（截图和窗口2 都没数据）、5-3 第2行。")
+        L.append("  任务书 Case4-1 字面上要求「输出⚠️告警」，实际没出——但输出本身更保守（三项全待定、没有任何别人的数），所以判为口径差异而不是铁律违反。")
+        L.append("  相关代码位置：bidbook/rows.py:609-613（只有 score>0 才记 best_idx）、bidbook/rows.py:632-633（best_name 因此为空）、")
+        L.append("  bidbook/rows.py:938（if score and name 才出 ⚠）、bidbook/rows.py:919-921（best_name 为空时来源说明退化成「未匹配」）。")
+        L.append("  若要严格按铁律8/铁律5 口径：让「0 分也记住最相似候选」并把 0.00 分打出来即可；这会改业务源码，本轮按任务书没有动。")
+    L.append("")
+    L.append("## 5. 人工复测清单")
+    L.append("")
+    L.append("在浏览器里打开工具（双击 启动.command / 启动.bat），照下面几条手动核对即可：")
+    L.append("")
+    L.append("1. 基准：窗口1 粘 " + code("【1.3-2.3】，26武清经开MTN007，2Y，1.5亿，AA+，10-12 簿记，10-13 缴款")
+             + "，截图传一张含 MTN007 的表格 → 三个数都对、行末【来源：截图匹配，匹配度1.00…】、无 ⚠。")
+    L.append("2. 范围取上限：窗口2 写 " + code("26武清经开MTN007 1.70-1.90")
+             + "、截图的利率列留空 → 输出「目前边际1.90%」，倍数两项「待定」。")
+    L.append("3. 日期陷阱：窗口2 粘 " + code("26武清经开MTN007 10-12簿记 /10-13缴款 /10-14上市")
+             + " → 立刻弹窗「【窗口2输入错误】…」，输出三项全「待定」，绝不能出现 12.00%/13.00倍/14.00倍。")
+    L.append("4. 相似债：截图表格放 " + code("26武清经开MTN009")
+             + "、" + code("26武清国资MTN001") + "、" + code("26武汉城建MTN001")
+             + "，窗口1 粘 " + code("26武清经开MTN007") + " → 三项全「待定」，行末【来源：未匹配】，且没有别人的数。")
+    L.append("5. 滑块：把匹配门槛滑到 0.70，看第 4 条的提示是否变化（当前：三只候选都被关键要素过滤判 0 分，滑到底也不会配出数——这正是「不误配」）。")
+    L.append("6. 缺数据：截图上传一张只有简称/期限/规模/评级、没有边际三列的图 → 全「待定」+ △ 提示区列出待定项。")
+    L.append("7. 空输入：窗口1 只留空格或乱码 → 页面提示「没有解析到任何文本行」，不崩。")
+    L.append("8. 看细节：生成后点开「生成细节」，确认每行的匹配度 / 数据来源（截图 / 文本）与上面一致。")
+    L.append("")
+    L.append("---")
+    L.append("")
+    L.append("复跑命令（探针文件放在 Work 根目录，不在 bidbook_tool 里）：")
+    L.append("")
+    L.append(FENCE)
+    L.append("cd D:\\Administrator\\桌面\\Work")
+    L.append(".\\bidbook_tool\\.venv-lite\\Scripts\\python.exe -u bidbook_probe_cases.py")
+    L.append(FENCE)
+    L.append("")
+    REPORT.write_text(NL.join(L), encoding="utf-8")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

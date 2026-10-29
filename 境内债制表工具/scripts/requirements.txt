@@ -1,0 +1,5 @@
+# 境内债制表工具依赖（Python 3.9+）
+# 安装：python -m pip install -r scripts/requirements.txt
+pandas>=1.5
+openpyxl>=3.1
+streamlit>=1.28   # 可视化界面（仅 scripts/app.py 需要；命令行批处理可不装）
