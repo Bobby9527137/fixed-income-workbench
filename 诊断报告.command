@@ -23,7 +23,7 @@ find_python() {
     STEM="${STEM%.tar.gz}"
     TARGET="$RUNTIME/python/$STEM"
     if [ ! -x "$TARGET/bin/python3" ]; then
-      echo "首次启动，正在解压内置 Python（约 1 分钟，请勿关闭窗口）…"
+      echo "首次启动，正在解压内置 Python（约 1 分钟，请勿关闭窗口）…" >&2
       # 先解到临时目录再整体就位：并发双击时不会互相踩坏半成品。
       STAGE="$TARGET.tmp.$$"
       /bin/rm -rf "$STAGE" 2>/dev/null || true
@@ -60,6 +60,8 @@ find_python() {
 }
 
 PY="$(find_python || true)"
+# 只取最后一行：即使以后有人把提示写到 stdout，也不会污染 Python 路径。
+PY="${PY##*$'\n'}"
 
 if [ -z "$PY" ]; then
   echo "包内 Python 解压失败，且未找到可用的 Python 3.10+，无法生成诊断报告。"
