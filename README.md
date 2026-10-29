@@ -2,6 +2,8 @@
 
 把四个固定收益小工具收进一个本地入口：一次双击、一个页面、统一启停。
 
+> **直接下载：** [固收工作台 v0.1.2 · macOS (Apple Silicon)](https://github.com/Bobby9527137/fixed-income-workbench/releases/tag/v0.1.2)
+
 | 工具 | 作用 |
 |---|---|
 | 境内债制表 | 地方债 / 信用债原始表 → 标准制表 + 待发行播报 |
