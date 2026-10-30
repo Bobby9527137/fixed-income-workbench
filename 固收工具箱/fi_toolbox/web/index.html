@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>固收工具箱</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1 id="title">固收工具箱</h1>
+      <p id="desc" class="sub"></p>
+    </div>
+    <div class="actions">
+      <span id="version" class="badge"></span>
+      <button id="btnSample" class="ghost" type="button">🎲 随机示例</button>
+      <button id="btnSelfcheck" class="ghost" type="button">🩺 自检</button>
+      <button id="btnRun" class="primary" type="button">计算</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>输入</h2>
+        <span id="seed" class="status"></span>
+      </div>
+      <form id="form" class="form" autocomplete="off"></form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>结果</h2>
+        <div class="actions">
+          <button id="btnCopy" class="ghost" type="button">复制结果</button>
+          <button id="btnDownload" class="ghost" type="button" hidden>导出 Excel</button>
+        </div>
+      </div>
+      <div id="warnings" class="warnings" hidden></div>
+      <div id="metrics" class="metrics"></div>
+      <div id="tables" class="tables"></div>
+      <pre id="text" class="text" hidden></pre>
+      <div id="empty" class="empty">点「随机示例」或填入数据后，点「计算」。</div>
+    </section>
+  </main>
+
+  <div id="selfcheck" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>自检结果</h3>
+        <button id="btnCloseCheck" class="ghost" type="button">关闭</button>
+      </div>
+      <div id="checkList" class="checks"></div>
+      <div id="checkReport" class="report" hidden></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

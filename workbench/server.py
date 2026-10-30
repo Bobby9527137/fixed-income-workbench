@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from . import selfcheck
 from .diagnostics import build_report
 from .ports import probe_http
 
@@ -251,6 +252,13 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_text(
                 200, build_report(self.config, self.manager, self.bootstrapper)
             )
+            return
+        if path == "/api/selfcheck":
+            fix = (query.get("fix", ["1"])[0] or "1") != "0"
+            self._send_json(200, {
+                "ok": True,
+                "data": selfcheck.run(self.config, self.manager, self.bootstrapper, fix=fix),
+            })
             return
         if len(segments) == 3 and segments[:2] == ["api", "logs"]:
             self._send_logs(segments[2], query)

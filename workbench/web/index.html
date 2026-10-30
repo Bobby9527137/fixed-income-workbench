@@ -16,6 +16,7 @@
       </div>
       <p id="status-summary" class="status-summary">正在连接工作台…</p>
       <div class="topbar-actions">
+        <button id="workbench-selfcheck" class="btn btn-small btn-quiet" type="button">自检</button>
         <button id="start-all" class="btn btn-small" type="button">全部启动</button>
         <button id="stop-all" class="btn btn-small btn-quiet" type="button">全部停止</button>
         <button id="exit-workbench" class="btn btn-quiet" type="button">退出工作台</button>
@@ -88,6 +89,17 @@
       </form>
     </div>
     <pre id="log-text" class="log-text"></pre>
+  </dialog>
+
+  <dialog id="selfcheck-dialog" class="log-dialog" aria-labelledby="selfcheck-title">
+    <div class="log-dialog-head">
+      <h2 id="selfcheck-title" class="section-title">自检结果</h2>
+      <form method="dialog">
+        <button id="selfcheck-close" class="btn btn-small" type="submit">关闭</button>
+      </form>
+    </div>
+    <div id="selfcheck-list" class="selfcheck-list"></div>
+    <div id="selfcheck-report" class="selfcheck-report" hidden></div>
   </dialog>
 
   <noscript>

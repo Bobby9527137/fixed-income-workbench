@@ -91,11 +91,16 @@ function cacheElements() {
     logTitle: document.getElementById("log-title"),
     logText: document.getElementById("log-text"),
     logClose: document.getElementById("log-close"),
+    selfcheckButton: document.getElementById("workbench-selfcheck"),
+    selfcheckDialog: document.getElementById("selfcheck-dialog"),
+    selfcheckList: document.getElementById("selfcheck-list"),
+    selfcheckReport: document.getElementById("selfcheck-report"),
   };
 }
 
 function bindEvents() {
   elements.exitButton.addEventListener("click", exitWorkbench);
+  elements.selfcheckButton.addEventListener("click", runWorkbenchSelfcheck);
   elements.startAll.addEventListener("click", () => bulkAction("start"));
   elements.stopAll.addEventListener("click", () => bulkAction("stop"));
   elements.rebuildEnvs.addEventListener("click", rebuildBrokenEnvs);
@@ -738,6 +743,82 @@ function openLogDialog() {
 
 function closeLogDialog() {
   elements.logDialog.removeAttribute("open");
+}
+
+function openSelfcheckDialog() {
+  if (typeof elements.selfcheckDialog.showModal === "function") {
+    if (!elements.selfcheckDialog.open) elements.selfcheckDialog.showModal();
+  } else {
+    elements.selfcheckDialog.setAttribute("open", "");
+  }
+}
+
+function downloadBase64(name, base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name || "自检报告.md";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function runWorkbenchSelfcheck() {
+  const button = elements.selfcheckButton;
+  button.disabled = true;
+  try {
+    const payload = await requestJSON("/api/selfcheck?fix=1");
+    if (exited) return;
+    if (!payload || payload.ok === false) {
+      throw new Error((payload && payload.error) || "自检失败");
+    }
+    const data = payload.data || {};
+    elements.selfcheckList.replaceChildren();
+    (data.checks || []).forEach((check) => {
+      const item = document.createElement("div");
+      item.className = "selfcheck-item";
+      const dot = document.createElement("span");
+      dot.className = "selfcheck-dot " + (check.status || "failed");
+      const body = document.createElement("div");
+      const name = document.createElement("div");
+      name.textContent = check.name || "";
+      const detail = document.createElement("div");
+      detail.className = "selfcheck-detail";
+      detail.textContent = check.detail || "";
+      body.appendChild(name);
+      body.appendChild(detail);
+      item.appendChild(dot);
+      item.appendChild(body);
+      elements.selfcheckList.appendChild(item);
+    });
+    elements.selfcheckReport.hidden = true;
+    elements.selfcheckReport.replaceChildren();
+    if (data.report) {
+      elements.selfcheckReport.hidden = false;
+      const title = document.createElement("div");
+      title.textContent = "已生成问题报告：" + (data.report.path || data.report.name);
+      const link = document.createElement("a");
+      link.href = "#";
+      link.textContent = "下载报告";
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        downloadBase64(data.report.name, data.report.base64);
+      });
+      const note = document.createElement("div");
+      note.textContent = "请先查看，确认后再转发给维护者。";
+      elements.selfcheckReport.appendChild(title);
+      elements.selfcheckReport.appendChild(link);
+      elements.selfcheckReport.appendChild(note);
+    }
+    openSelfcheckDialog();
+  } catch (error) {
+    showNotice(error.message || "自检失败");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderBootstrap(environments) {

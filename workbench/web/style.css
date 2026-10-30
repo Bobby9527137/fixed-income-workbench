@@ -846,3 +846,53 @@ textarea {
     animation-iteration-count: 1 !important;
   }
 }
+
+.selfcheck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 55vh;
+  overflow: auto;
+}
+
+.selfcheck-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.selfcheck-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex: 0 0 auto;
+}
+
+.selfcheck-dot.ok { background: var(--ok); }
+.selfcheck-dot.fixed { background: var(--warn); }
+.selfcheck-dot.failed { background: var(--danger); }
+
+.selfcheck-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.selfcheck-report {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-line);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.selfcheck-report a { color: var(--danger); }
+
+.selfcheck-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
