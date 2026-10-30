@@ -1,110 +1,254 @@
 {
   "version": 1,
-  "workbench": { "port": 8787 },
+  "workbench": {
+    "port": 8787
+  },
   "platform": {
-    "darwin": { "pythonArchive": "runtime/python/cpython-3.12.15+20261021-aarch64-apple-darwin-install_only.tar.gz" },
-    "win32":  { "pythonArchive": null, "useSystemPython": true }
+    "darwin": {
+      "pythonArchive": "runtime/python/cpython-3.12.15+20261021-aarch64-apple-darwin-install_only.tar.gz"
+    },
+    "win32": {
+      "pythonArchive": null,
+      "useSystemPython": true
+    }
   },
   "environments": {
     "streamlit": {
-      "requirements": { "darwin": "requirements/streamlit-mac.txt", "win32": "requirements/streamlit-win.txt" },
-      "wheelhouse":  { "darwin": "runtime/wheels/macos-arm64-cp312", "win32": "runtime/wheels/win-amd64-cp311" },
-      "probe": ["streamlit", "pandas", "openpyxl"]
+      "requirements": {
+        "darwin": "requirements/streamlit-mac.txt",
+        "win32": "requirements/streamlit-win.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312",
+        "win32": "runtime/wheels/win-amd64-cp311"
+      },
+      "probe": [
+        "streamlit",
+        "pandas",
+        "openpyxl"
+      ]
     },
     "bidbook": {
-      "requirements": { "darwin": "requirements/bidbook-mac.txt", "win32": "requirements/bidbook-win.txt" },
-      "wheelhouse":  { "darwin": "runtime/wheels/macos-arm64-cp312", "win32": "runtime/wheels/win-amd64-cp311" },
-      "probe": ["fastapi", "uvicorn", "cv2", "numpy"]
+      "requirements": {
+        "darwin": "requirements/bidbook-mac.txt",
+        "win32": "requirements/bidbook-win.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312",
+        "win32": "runtime/wheels/win-amd64-cp311"
+      },
+      "probe": [
+        "fastapi",
+        "uvicorn",
+        "cv2",
+        "numpy"
+      ]
     },
     "stdlib": {
-      "requirements": { "darwin": "requirements/stdlib-mac.txt", "win32": "requirements/stdlib-win.txt" },
-      "wheelhouse":  { "darwin": "runtime/wheels/macos-arm64-cp312", "win32": "runtime/wheels/win-amd64-cp311" },
+      "requirements": {
+        "darwin": "requirements/stdlib-mac.txt",
+        "win32": "requirements/stdlib-win.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312",
+        "win32": "runtime/wheels/win-amd64-cp311"
+      },
       "probe": []
     },
     "toolbox": {
-      "requirements": { "darwin": "requirements/toolbox-mac.txt", "win32": "requirements/toolbox-win.txt" },
-      "wheelhouse":  { "darwin": "runtime/wheels/macos-arm64-cp312", "win32": "runtime/wheels/win-amd64-cp311" },
-      "probe": ["openpyxl"]
+      "requirements": {
+        "darwin": "requirements/toolbox-mac.txt",
+        "win32": "requirements/toolbox-win.txt"
+      },
+      "wheelhouse": {
+        "darwin": "runtime/wheels/macos-arm64-cp312",
+        "win32": "runtime/wheels/win-amd64-cp311"
+      },
+      "probe": [
+        "openpyxl"
+      ]
     }
   },
   "tools": [
     {
-      "id": "bondtable", "name": "境内债制表",
+      "id": "bondtable",
+      "name": "境内债制表",
       "desc": "地方债 / 信用债原始表 → 标准制表 + 待发行播报",
-      "root": "../境内债制表工具", "kind": "streamlit",
-      "entry": "scripts/app.py", "environment": "streamlit",
-      "port": 8511, "healthPath": "/_stcore/health",
-      "dirs": { "原始数据": "data/原始数据", "输出": "data/输出" }
+      "root": "./境内债制表工具",
+      "kind": "streamlit",
+      "entry": "scripts/app.py",
+      "environment": "streamlit",
+      "port": 8511,
+      "healthPath": "/_stcore/health",
+      "dirs": {
+        "原始数据": "data/原始数据",
+        "输出": "data/输出"
+      }
     },
     {
-      "id": "bidbook", "name": "投标簿记提取",
+      "id": "bidbook",
+      "name": "投标簿记提取",
       "desc": "投标量表截图 + 债券文本行 → 标准簿记文案",
-      "root": "../bidbook_tool", "kind": "python-entry",
-      "entry": "app.py", "args": ["--port", "{port}", "--no-browser"], "environment": "bidbook",
-      "port": 8765, "healthPath": "/", "dirs": {}
+      "root": "./bidbook_tool",
+      "kind": "python-entry",
+      "entry": "app.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "bidbook",
+      "port": 8765,
+      "healthPath": "/",
+      "dirs": {}
     },
     {
-      "id": "wacc", "name": "WACC 批量计算",
+      "id": "wacc",
+      "name": "WACC 批量计算",
       "desc": "上传表格或手动录入，批量算加权平均资本成本",
-      "root": "../wacc-tool", "kind": "streamlit",
-      "entry": "app.py", "environment": "streamlit",
-      "port": 8512, "healthPath": "/_stcore/health", "dirs": {}
+      "root": "./wacc-tool",
+      "kind": "streamlit",
+      "entry": "app.py",
+      "environment": "streamlit",
+      "port": 8512,
+      "healthPath": "/_stcore/health",
+      "dirs": {}
     },
     {
-      "id": "listing", "name": "上市要素整理",
+      "id": "listing",
+      "name": "上市要素整理",
       "desc": "任意排版的要素文本 → 固定模版（本地规则，无模型）",
-      "root": "../上市要素整理", "kind": "python-entry",
-      "entry": "app.py", "args": ["--port", "{port}", "--no-browser"], "environment": "stdlib",
-      "port": 8513, "healthPath": "/", "dirs": {}
+      "root": "./上市要素整理",
+      "kind": "python-entry",
+      "entry": "app.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "stdlib",
+      "port": 8513,
+      "healthPath": "/",
+      "dirs": {}
     },
     {
-      "id": "bondcalc", "name": "债券计算器",
+      "id": "bondcalc",
+      "name": "债券计算器",
       "desc": "净价/全价、YTM、久期、凸性、DV01、持有期情景",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/bond_calculator.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8514, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/bond_calculator.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8514,
+      "healthPath": "/api/health",
+      "dirs": {}
     },
     {
-      "id": "repo", "name": "回购/资金计算器",
+      "id": "repo",
+      "name": "回购/资金计算器",
       "desc": "质押式回购到期金额、实际资金成本、质押券与杠杆",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/repo_calculator.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8515, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/repo_calculator.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8515,
+      "healthPath": "/api/health",
+      "dirs": {}
     },
     {
-      "id": "cashflow", "name": "现金流/付息日历",
+      "id": "cashflow",
+      "name": "现金流/付息日历",
       "desc": "从持仓表生成未来付息、兑付、应计利息和年度汇总",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/cashflow_calendar.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8516, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/cashflow_calendar.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8516,
+      "healthPath": "/api/health",
+      "dirs": {}
     },
     {
-      "id": "portfoliorisk", "name": "组合风险快照",
+      "id": "portfoliorisk",
+      "name": "组合风险快照",
       "desc": "加权久期、总 DV01、评级/行业集中度、±利率情景",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/portfolio_risk.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8517, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/portfolio_risk.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8517,
+      "healthPath": "/api/health",
+      "dirs": {}
     },
     {
-      "id": "futuresbasis", "name": "国债期货基差",
+      "id": "futuresbasis",
+      "name": "国债期货基差",
       "desc": "CTD 基差、净基差、IRR、DV01 对冲手数",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/futures_basis.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8518, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/futures_basis.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8518,
+      "healthPath": "/api/health",
+      "dirs": {}
     },
     {
-      "id": "bidstats", "name": "投标/中标统计",
+      "id": "bidstats",
+      "name": "投标/中标统计",
       "desc": "按债券汇总投标量、加权利率、中标量与中标率",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/bid_stats.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8519, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/bid_stats.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8519,
+      "healthPath": "/api/health",
+      "dirs": {}
     },
     {
-      "id": "tradeextract", "name": "交易要素提取",
+      "id": "tradeextract",
+      "name": "交易要素提取",
       "desc": "交易聊天文本 → 结构化台账 + Excel",
-      "root": "../固收工具箱", "kind": "python-entry",
-      "entry": "apps/trade_extract.py", "args": ["--port", "{port}", "--no-browser"], "environment": "toolbox",
-      "port": 8520, "healthPath": "/api/health", "dirs": {}
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/trade_extract.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8520,
+      "healthPath": "/api/health",
+      "dirs": {}
     }
   ]
 }
