@@ -52,6 +52,12 @@ python3 -m streamlit run scripts/app.py
 python3 scripts/test_transform.py
 ```
 
+## 随机示例
+
+页面顶部的「🎲 随机示例」会随机生成地方债 / 信用债原始表（随机日期、代码、利率、规模，并保留斜杠日期、Excel 序列号等脏格式），自动跑一遍制表。每次点击换一组，种子显示在按钮旁边。
+
+实现见 `scripts/random_sample.py`，回归测试 `scripts/test_random_sample.py`。
+
 ## 已知限制
 
 - 原始表的表头行位置因导出工具而异；自动识别不准时手动指定表头行。

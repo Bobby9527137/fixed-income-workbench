@@ -96,6 +96,7 @@ INDEX_HTML = r"""<!doctype html>
   <h1>投标簿记信息提取<span class="ver" id="ver"></span></h1>
   <span class="grow"></span>
   <span id="engines"></span>
+  <button class="ghost" id="btnSample" title="随机生成一组表格与文本，直接出结果">🎲 随机示例</button>
 </header>
 
 <main>
@@ -586,6 +587,28 @@ $("btnTxt").addEventListener("click", function(){
   var name = "簿记" + now.getFullYear() + p(now.getMonth() + 1) + p(now.getDate()) + "-" + p(now.getHours()) + p(now.getMinutes()) + ".txt";
   var url = URL.createObjectURL(new Blob([t], { type:"text/plain;charset=utf-8" }));
   var a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url);
+});
+
+/* ---------------- 随机示例 ---------------- */
+$("btnSample").addEventListener("click", function(){
+  toast($("buildMsg"), "正在生成随机示例…");
+  api("/api/sample").then(function(data){
+    if(!data.ok) throw new Error(data.error || "生成失败");
+    S.images = []; renderThumbs(); $("btnOcr").disabled = true;
+    S.tableRows = (data.rows || []).map(function(r, i){
+      r.index = i + 1; r._image = "随机示例"; r._review = false;
+      if(!r.missing) r.missing = [];
+      return r;
+    });
+    renderTable();
+    $("pasted").value = data.pasted || "";
+    $("values").value = data.values || "";
+    $("map").innerHTML = '<span class="maplabel" style="grid-column:1/-1">随机示例不经过 OCR，表格已直接填好</span>';
+    rebuild(true);
+    toast($("buildMsg"), "已生成随机示例（种子 " + data.seed + "）", "ok");
+  }).catch(function(err){
+    toast($("buildMsg"), "随机示例失败：" + err, "err");
+  });
 });
 
 /* ---------------- 启动 ---------------- */

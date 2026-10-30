@@ -7,6 +7,7 @@
 """
 import io
 import os
+import random
 import sys
 from datetime import datetime
 
@@ -17,6 +18,46 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bondtable import (DEFAULT_OUT_DIR, convert_dataframe, load_config, load_tasks,
                        make_credit_text, make_local_text, write_output)
+from random_sample import make_demo
+
+
+class _MemoryUpload:
+    """把内存里的 xlsx 伪装成 st.file_uploader 的返回值。"""
+
+    def __init__(self, name: str, data: bytes) -> None:
+        self.name = name
+        self._data = data
+
+    @property
+    def size(self) -> int:
+        return len(self._data)
+
+    def getbuffer(self):
+        return memoryview(self._data)
+
+
+def _start_demo() -> None:
+    seed = random.randrange(1, 1_000_000)
+    st.session_state["demo"] = {"seed": seed, "files": make_demo(seed)}
+    st.session_state["auto_run"] = True
+    st.session_state.pop("results", None)
+
+
+def _clear_demo() -> None:
+    st.session_state["demo"] = None
+    st.session_state.pop("results", None)
+    st.session_state.pop("auto_run", None)
+
+
+def run_conversion(tasks, blurb_word: str) -> None:
+    results = []
+    for task in tasks:
+        result, warnings = convert_dataframe(task["df"], config, task["choice"])
+        out_name = f"{task['choice']}_制表结果_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        out_path = write_output(result, os.path.join(DEFAULT_OUT_DIR, out_name))
+        results.append({"choice": task["choice"], "file": task["file"], "sheet": task["sheet"],
+                        "result": result, "warnings": warnings, "out": out_path})
+    st.session_state["results"] = results
 
 st.set_page_config(page_title="境内债制表工具", page_icon="📊", layout="wide")
 
@@ -47,7 +88,20 @@ with st.sidebar:
                     height=280, hide_index=True)
     st.caption("信用债口径：截标时间直取并归一为“月-日 时:分”；发行量=实际发行优先、空则取计划；申购区间有则填、无则空；主/债评级=主体/债项评级合成。")
 
-uploaded = st.file_uploader("① 上传原始数据表（可多选，.xlsx）", type=["xlsx", "xls"], accept_multiple_files=True)
+demo = st.session_state.get("demo")
+c_demo, c_clear, c_note = st.columns([1, 1, 4])
+c_demo.button("🎲 随机示例", on_click=_start_demo,
+              help="随机生成地方债 / 信用债原始表，自动跑一遍制表，用来检查输出是否正常")
+if demo:
+    c_clear.button("清除示例", on_click=_clear_demo, key="clear_demo")
+    names = "、".join(name for name, _ in demo["files"])
+    c_note.caption(f"正在使用随机示例 · 种子 {demo['seed']} · {names}")
+
+if demo:
+    uploaded = [_MemoryUpload(name, data) for name, data in demo["files"]]
+else:
+    uploaded = st.file_uploader("① 上传原始数据表（可多选，.xlsx）",
+                                type=["xlsx", "xls"], accept_multiple_files=True)
 
 if not uploaded:
     st.info("👆 请上传原始数据表；也可以把文件放进 `data/原始数据/`，用命令行批处理："
@@ -101,15 +155,9 @@ blurb_word = st.radio(
     horizontal=True,
     help="生成播报文本时头行的用词：*本周/今日 + 债种 + 待发行*；可随时切换，不影响制表结果",
 )
-if st.button("🚀 一键制表", type="primary"):
-    results = []
-    for t in tasks:
-        result, warnings = convert_dataframe(t["df"], config, t["choice"])
-        out_name = f"{t['choice']}_制表结果_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        out_path = write_output(result, os.path.join(DEFAULT_OUT_DIR, out_name))
-        results.append({"choice": t["choice"], "file": t["file"], "sheet": t["sheet"],
-                        "result": result, "warnings": warnings, "out": out_path})
-    st.session_state["results"] = results
+auto_run = st.session_state.pop("auto_run", False)
+if st.button("🚀 一键制表", type="primary") or auto_run:
+    run_conversion(tasks, blurb_word)
 
 results = st.session_state.get("results")
 if results:

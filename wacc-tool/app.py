@@ -5,15 +5,17 @@
 - macOS   ：双击 ``macOS/启动WACC工具.command``
 - Windows ：双击 ``Windows/启动WACC工具.bat``
 
-界面共两种模式：
+界面共三种模式：
 - 模式一：上传 .xlsx / .xls / .csv，选工作表后用下拉框把各参数“连线”到列；
-- 模式二：用可编辑表格直接录入多组参数。
+- 模式二：用可编辑表格直接录入多组参数；
+- 模式三：随机示例，自动生成一组参数并计算，用于快速检查输出是否正常。
 """
 
 from __future__ import annotations
 
 import hashlib
 import io
+import random
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -25,6 +27,8 @@ from wacc_core import (
     WaccError,
     batch_compute,
 )
+
+from random_sample import generate as generate_random_rows
 
 st.set_page_config(page_title="WACC 批量计算工具", page_icon="📊", layout="wide")
 
@@ -820,6 +824,33 @@ def mode_manual(pct_mode: str, pct_mode_label: str, amount_unit: str) -> None:
 # --------------------------------------------------------------------------- #
 # 主界面
 # --------------------------------------------------------------------------- #
+def mode_random(pct_mode: str, pct_mode_label: str) -> None:
+    """随机生成一组参数并立即计算，用于快速检查输出是否正常。"""
+    st.markdown("### 随机示例")
+    st.caption("每次生成一组随机但合理的参数，自动计算一遍；换一组就再点一次。")
+
+    if "random_seed" not in st.session_state:
+        st.session_state["random_seed"] = random.randrange(1, 1_000_000)
+
+    c1, c2 = st.columns([1, 3])
+    if c1.button("🎲 重新生成", type="primary", key="random_regen"):
+        st.session_state["random_seed"] = random.randrange(1, 1_000_000)
+    seed = st.session_state["random_seed"]
+    rows = generate_random_rows(seed)
+    c2.caption(f"随机种子：{seed} · {len(rows)} 行 · 每次点按钮都会换一组")
+
+    preview = pd.DataFrame(rows)
+    with st.expander("📋 查看随机生成的参数", expanded=True):
+        _stretch(st.dataframe, display_safe(preview), hide_index=True)
+
+    ok, errors = batch_compute(rows, pct_mode=pct_mode)
+    show_errors(errors)
+    if ok:
+        show_results(build_results_df(ok), pct_mode_label, "rand")
+    else:
+        st.error("本次随机数据都没通过校验，请再点一次「重新生成」。")
+
+
 def main() -> None:
     st.title("📊 WACC 批量计算工具")
     st.caption("加权平均资本成本批量估算 · 上传表格或手动录入 · 结果可导出 CSV / Excel")
@@ -851,15 +882,17 @@ def main() -> None:
 
     mode = st.radio(
         "选择使用模式",
-        ["模式一：上传表格批量计算", "模式二：手动录入批量计算"],
+        ["模式一：上传表格批量计算", "模式二：手动录入批量计算", "模式三：随机示例（自动生成）"],
         horizontal=True, key="mode",
     )
     st.divider()
 
     if mode.startswith("模式一"):
         mode_upload(pct_mode, pct_label, amount_unit)
-    else:
+    elif mode.startswith("模式二"):
         mode_manual(pct_mode, pct_label, amount_unit)
+    else:
+        mode_random(pct_mode, pct_label)
 
 
 if __name__ == "__main__":

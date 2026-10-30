@@ -35,6 +35,7 @@ _HAS_MULTIPART = importlib.util.find_spec("multipart") is not None
 from . import __version__
 from . import ocr as ocr_mod
 from . import rows as rows_mod
+from . import sample as sample_mod
 from . import table as table_mod
 from .page import INDEX_HTML
 
@@ -119,6 +120,12 @@ def api_config() -> dict:
         "value_blacklist": list(rows_mod.VALUE_BLACKLIST),
         "value_reject_message": rows_mod.VALUE_REJECT_MESSAGE,
     }
+
+
+@app.get("/api/sample")
+def api_sample(seed: Optional[int] = None) -> JSONResponse:
+    """生成一组随机示例：表格行 + 窗口 1 文本 + 窗口 2 数据。"""
+    return JSONResponse({"ok": True, **sample_mod.generate(seed)})
 
 
 @app.post("/api/recognize")
