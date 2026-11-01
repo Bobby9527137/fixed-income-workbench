@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,6 +25,7 @@ from typing import Any
 
 from . import __version__
 from . import selfcheck
+from . import update
 from .diagnostics import build_report
 from .ports import probe_http
 
@@ -260,6 +262,13 @@ class _Handler(BaseHTTPRequestHandler):
                 "data": selfcheck.run(self.config, self.manager, self.bootstrapper, fix=fix),
             })
             return
+        if path == "/api/update/check":
+            force = (query.get("force", ["0"])[0] or "0") == "1"
+            self._send_json(200, {
+                "ok": True,
+                "data": update.check(self.config, force=force),
+            })
+            return
         if len(segments) == 3 and segments[:2] == ["api", "logs"]:
             self._send_logs(segments[2], query)
             return
@@ -302,6 +311,22 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/shutdown":
             self._start_shutdown()
+            return
+        if path == "/api/update/apply":
+            result = update.check(self.config, force=True)
+            if result.get("status") != "available":
+                raise _HttpError(409, result.get("message") or "没有可用更新")
+            try:
+                data = update.apply_update(self.config, result)
+            except update.UpdateError as exc:
+                raise _HttpError(500, str(exc)) from exc
+            self._send_json(200, {"ok": True, "data": data})
+            return
+        if path == "/api/update/restart":
+            self._send_json(200, {"ok": True, "data": {"restarting": True}})
+            timer = threading.Timer(1.0, self._restart_workbench)
+            timer.daemon = True
+            timer.start()
             return
         if len(segments) == 4 and segments[:2] == ["api", "tools"]:
             tool_id, action = segments[2], segments[3]
@@ -620,6 +645,32 @@ class _Handler(BaseHTTPRequestHandler):
         timer.daemon = True
         timer.start()
 
+    def _restart_workbench(self) -> None:
+        try:
+            self.manager.shutdown()
+        except Exception:  # noqa: BLE001
+            _logger.exception("重启前停止子进程失败")
+        script = str(self.config.base_dir / "start.py")
+        args = [sys.executable, script, *sys.argv[1:]]
+        try:
+            if sys.platform == "win32":
+                flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                subprocess.Popen(
+                    args, cwd=str(self.config.base_dir), creationflags=flags,
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                subprocess.Popen(
+                    args, cwd=str(self.config.base_dir), start_new_session=True,
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except Exception:  # noqa: BLE001
+            _logger.exception("重启工作台失败")
+            return
+        os._exit(0)
+
     # --------------------------------------------------------------- 响应
     def _host_allowed(self) -> bool:
         header = self.headers.get("Host")
@@ -700,12 +751,16 @@ _POST_ONLY_EXACT = {
     "/api/tools/start-all",
     "/api/tools/stop-all",
     "/api/shutdown",
+    "/api/update/apply",
+    "/api/update/restart",
 }
 _GET_ONLY_EXACT = {
     "/api/state",
     "/api/ping",
     "/api/files/recent",
     "/api/diagnostics",
+    "/api/selfcheck",
+    "/api/update/check",
 }
 
 

@@ -54,6 +54,7 @@ let retryNotBefore = 0;
 let exited = false;
 let lastBootstrapErrorKey = "";
 let fileHintPath = "";
+let updateInfo = null;
 
 const cards = new Map();
 const pendingActions = new Map();
@@ -64,6 +65,7 @@ function init() {
   bindEvents();
   refreshState();
   loadRecent();
+  window.setTimeout(() => checkUpdate(false), 1500);
   window.setInterval(refreshState, POLL_INTERVAL_MS);
   window.setInterval(loadRecent, RECENT_INTERVAL_MS);
 }
@@ -95,12 +97,27 @@ function cacheElements() {
     selfcheckDialog: document.getElementById("selfcheck-dialog"),
     selfcheckList: document.getElementById("selfcheck-list"),
     selfcheckReport: document.getElementById("selfcheck-report"),
+    appVersion: document.getElementById("app-version"),
+    updateStatus: document.getElementById("update-status"),
+    checkUpdateButton: document.getElementById("check-update"),
+    updateDialog: document.getElementById("update-dialog"),
+    updateBody: document.getElementById("update-body"),
+    applyUpdateButton: document.getElementById("apply-update"),
+    restartWorkbenchButton: document.getElementById("restart-workbench"),
+    updateProgress: document.getElementById("update-progress"),
   };
 }
 
 function bindEvents() {
   elements.exitButton.addEventListener("click", exitWorkbench);
   elements.selfcheckButton.addEventListener("click", runWorkbenchSelfcheck);
+  elements.checkUpdateButton.addEventListener("click", () => checkUpdate(true));
+  elements.updateStatus.addEventListener("click", () => {
+    if (updateInfo && updateInfo.status === "available") openUpdateDialog();
+    else checkUpdate(true);
+  });
+  elements.applyUpdateButton.addEventListener("click", applyUpdate);
+  elements.restartWorkbenchButton.addEventListener("click", restartWorkbench);
   elements.startAll.addEventListener("click", () => bulkAction("start"));
   elements.stopAll.addEventListener("click", () => bulkAction("stop"));
   elements.rebuildEnvs.addEventListener("click", rebuildBrokenEnvs);
@@ -212,6 +229,7 @@ function applyState(data) {
       : {};
   const pid = Number.isInteger(workbench.pid) ? workbench.pid : null;
   const port = Number.isInteger(workbench.port) ? workbench.port : null;
+  setText(elements.appVersion, `v${workbench.version || "—"}`);
   const tools = Array.isArray(lastState.tools) ? lastState.tools : [];
   const running = tools.filter((tool) => normalizeState(tool.state) === "running").length;
   const envs = Object.entries(lastState.environments || {}).filter(
@@ -683,7 +701,7 @@ function openTool(toolId) {
     );
     return;
   }
-  window.open(toolPageUrl(tool), "_blank", "noopener");
+  window.open(tool.pageUrl || toolPageUrl(tool), "_blank", "noopener");
 }
 
 // 后端快照的 url 是健康检查地址（Streamlit 为 /_stcore/health），
@@ -703,6 +721,9 @@ function toolPageUrl(tool) {
   let path = url.pathname || "/";
   if (/\/_stcore\/health\/?$/.test(path)) {
     path = path.replace(/\/_stcore\/health\/?$/, "/");
+  }
+  if (/\/api\/health\/?$/.test(path)) {
+    path = path.replace(/\/api\/health\/?$/, "/");
   }
   if (!path.endsWith("/")) path += "/";
 
@@ -819,6 +840,118 @@ async function runWorkbenchSelfcheck() {
   } finally {
     button.disabled = false;
   }
+}
+
+async function checkUpdate(force) {
+  const button = elements.checkUpdateButton;
+  if (button) button.disabled = true;
+  try {
+    const payload = await requestJSON(
+      `/api/update/check${force ? "?force=1" : ""}`
+    );
+    if (exited) return;
+    updateInfo = payload && payload.data ? payload.data : null;
+    renderUpdateStatus(updateInfo);
+    if (force) {
+      if (updateInfo && updateInfo.status === "available") openUpdateDialog();
+      else if (updateInfo && updateInfo.status === "up_to_date") {
+        showNotice("当前已是最新版本。", "info");
+      } else if (updateInfo && updateInfo.status === "error") {
+        showNotice(updateInfo.message || "检查更新失败。", "error");
+      }
+    }
+  } catch (error) {
+    if (exited) return;
+    updateInfo = { status: "error", message: String(error.message || error) };
+    renderUpdateStatus(updateInfo);
+    if (force) showNotice("检查更新失败：" + (error.message || error), "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function renderUpdateStatus(info) {
+  if (!info) {
+    setText(elements.updateStatus, "");
+    return;
+  }
+  const status = info.status;
+  let text = "（检查更新失败）";
+  if (status === "available") text = `（有新版本 v${info.latest}）`;
+  else if (status === "up_to_date") text = "（暂无更新）";
+  else if (status === "disabled") text = "（未开启更新检查）";
+  else if (status === "no_asset") text = "（当前系统暂无更新包）";
+  setText(elements.updateStatus, text);
+  elements.updateStatus.classList.toggle("available", status === "available");
+  elements.updateStatus.title =
+    info.message || (status === "available" ? "点击查看更新" : "");
+}
+
+function showUpdateDialog() {
+  if (typeof elements.updateDialog.showModal === "function") {
+    if (!elements.updateDialog.open) elements.updateDialog.showModal();
+  } else {
+    elements.updateDialog.setAttribute("open", "");
+  }
+}
+
+function openUpdateDialog() {
+  const info = updateInfo;
+  if (!info || info.status !== "available") return;
+  const body = elements.updateBody;
+  body.replaceChildren();
+  const head = document.createElement("div");
+  head.textContent = `当前 v${info.current} → 新版本 v${info.latest}`;
+  const asset = document.createElement("div");
+  const size =
+    info.asset && info.asset.size ? ` · ${Math.round(info.asset.size / 1024)} KB` : "";
+  asset.textContent = `更新包：${(info.asset && info.asset.name) || "—"}${size}`;
+  const notes = document.createElement("div");
+  notes.className = "update-notes";
+  notes.textContent = info.notes || "（该版本没有发布说明）";
+  body.appendChild(head);
+  body.appendChild(asset);
+  body.appendChild(notes);
+  elements.applyUpdateButton.hidden = false;
+  elements.applyUpdateButton.disabled = false;
+  elements.restartWorkbenchButton.hidden = true;
+  elements.updateProgress.textContent = "";
+  showUpdateDialog();
+}
+
+async function applyUpdate() {
+  const button = elements.applyUpdateButton;
+  button.disabled = true;
+  elements.updateProgress.textContent = "正在下载、校验并覆盖…";
+  try {
+    const payload = await requestJSON("/api/update/apply", { method: "POST" });
+    if (exited) return;
+    if (!payload || payload.ok === false) {
+      throw new Error((payload && payload.error) || "更新失败");
+    }
+    const data = payload.data || {};
+    elements.updateProgress.textContent = `更新完成：v${data.version || "?"}。请重启工作台。`;
+    elements.applyUpdateButton.hidden = true;
+    elements.restartWorkbenchButton.hidden = false;
+    elements.restartWorkbenchButton.disabled = false;
+  } catch (error) {
+    elements.updateProgress.textContent = "更新失败：" + (error.message || error);
+    button.disabled = false;
+  }
+}
+
+async function restartWorkbench() {
+  const button = elements.restartWorkbenchButton;
+  button.disabled = true;
+  elements.updateProgress.textContent = "正在重启工作台…";
+  try {
+    await requestJSON("/api/update/restart", { method: "POST" });
+  } catch (error) {
+    // 服务端会主动退出，连接中断是预期情况。
+  }
+  window.setTimeout(() => {
+    window.location.reload();
+  }, 2500);
 }
 
 function renderBootstrap(environments) {

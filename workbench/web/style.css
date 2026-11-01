@@ -896,3 +896,52 @@ textarea {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.version-badge {
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+.update-status {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.update-status.available {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.update-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 13px;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.update-notes {
+  white-space: pre-wrap;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}

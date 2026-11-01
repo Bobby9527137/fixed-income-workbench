@@ -2,7 +2,7 @@
 
 把十一个固定收益小工具收进一个本地入口：一次双击、一个页面、统一启停。
 
-> **直接下载：** [固收工作台 v0.2.1 · macOS (Apple Silicon)](https://github.com/Bobby9527137/fixed-income-workbench/releases/tag/v0.2.1)
+> **直接下载：** [固收工作台 v0.2.2 · macOS (Apple Silicon)](https://github.com/Bobby9527137/fixed-income-workbench/releases/tag/v0.2.2)
 
 | 工具 | 作用 |
 |---|---|
@@ -20,7 +20,7 @@
 
 ## 特点
 
-- **纯本地**：只监听 `127.0.0.1`，运行期不访问网络，不上传任何数据。
+- **纯本地**：只监听 `127.0.0.1`；除可关闭的 GitHub 更新检查外不访问网络，不上传任何数据。
 - **离线自举**：内置 Python + 本地 wheelhouse，首次运行不需要联网。
 - **单实例**：重复双击只会打开已有页面，不会起第二份。
 - **环境自愈**：依赖缺失或损坏时自动重建，不需要手工 pip。
@@ -28,10 +28,11 @@
 - **工作台本体只用 Python 标准库**。
 - **随机示例**：每个工具都能一键生成随机输入并自动跑一遍，用来检查输出是否正常。
 - **自检与报告**：工作台和每个工具都有自检；能自动修的立即修，修不了的在本地生成标准报告，你确认后再转发。
+- **自动更新**：启动后检查 GitHub Release，版本号旁显示「暂无更新 / 有新版本」；确认后下载增量包覆盖并重启。
 
 ## 下载与运行
 
-1. 到 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.2.1.zip`。
+1. 到 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.2.2.zip`。
 2. 解压到本地目录（桌面、「应用程序」等均可）。
 3. 首次运行：在 Finder 里**右键** `启动工作台.command` → **打开** → 再点一次**打开**。
 4. 首次启动会解压内置 Python 并创建运行环境，约 1–3 分钟；之后双击秒开。

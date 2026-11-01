@@ -13,10 +13,13 @@
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"></span>
         <h1 class="brand-title">固收工作台</h1>
+        <span id="app-version" class="version-badge">v—</span>
+        <span id="update-status" class="update-status"></span>
       </div>
       <p id="status-summary" class="status-summary">正在连接工作台…</p>
       <div class="topbar-actions">
         <button id="workbench-selfcheck" class="btn btn-small btn-quiet" type="button">自检</button>
+        <button id="check-update" class="btn btn-small btn-quiet" type="button">检查更新</button>
         <button id="start-all" class="btn btn-small" type="button">全部启动</button>
         <button id="stop-all" class="btn btn-small btn-quiet" type="button">全部停止</button>
         <button id="exit-workbench" class="btn btn-quiet" type="button">退出工作台</button>
@@ -100,6 +103,21 @@
     </div>
     <div id="selfcheck-list" class="selfcheck-list"></div>
     <div id="selfcheck-report" class="selfcheck-report" hidden></div>
+  </dialog>
+
+  <dialog id="update-dialog" class="log-dialog" aria-labelledby="update-title">
+    <div class="log-dialog-head">
+      <h2 id="update-title" class="section-title">发现新版本</h2>
+      <form method="dialog">
+        <button class="btn btn-small" type="submit">稍后</button>
+      </form>
+    </div>
+    <div id="update-body" class="update-body"></div>
+    <div class="update-actions">
+      <button id="apply-update" class="btn" type="button">下载并更新</button>
+      <button id="restart-workbench" class="btn btn-quiet" type="button" hidden>重启工作台</button>
+      <span id="update-progress" class="hint"></span>
+    </div>
   </dialog>
 
   <noscript>

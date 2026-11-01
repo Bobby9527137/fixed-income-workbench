@@ -366,6 +366,7 @@ class ToolManager:
             "state": record.state,
             "port": port,
             "url": self._url(record.spec, port),
+            "pageUrl": f"http://{HOST}:{port}/",
             "pid": record.pid,
             "owned": record.owned,
             "error": record.error,
