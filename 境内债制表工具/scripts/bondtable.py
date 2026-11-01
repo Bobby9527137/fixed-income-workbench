@@ -471,22 +471,30 @@ def write_output(df: pd.DataFrame, out_path: str, sheet_name: str = "制表结�
 # 文本播报（2026-10-09 新增：网页"一键制作文本"用，地方债专用）
 # ---------------------------------------------------------------------------
 def region_short(short_name) -> str:
-    """债券简称 → 地区短名（2026-10-09 真实数据联调确认的解析规则）：
-    '26广东债47' → '广东'；'26内蒙古27'（无"债"字）→ '内蒙古'；
-    '26青岛81' → '青岛'；'26广东债40(续发)' → '广东'（续发行并入本地区，不单列）。
-    规则：去掉开头年份数字 → 取首个数字之前的部分 → 循环剥掉结尾的
-    "续发"/"债"/"续"标记；无法解析时原样返回。"""
-    s = re.sub(r"^\d+", "", str(short_name).strip())
-    m = re.match(r"^[^\d]+", s)
-    head = (m.group(0) if m else s).strip()
+    """债券简称 → 地区短名。
+
+    '26广东债47' → '广东'；'26内蒙古27' → '内蒙古'；'26青岛81' → '青岛'；
+    '26广东债40(续发)' → '广东'；'大连债专项(二十一期)' → '大连'；
+    '四川债专项(五十五期)' → '四川'；'青岛债再融资一般(十二期)' → '青岛'。
+    规则：去开头年份数字 → 有「债」取「债」前 → 无「债」取首个数字前 →
+    去掉括号内容 → 剥掉结尾「续发/续」；无法解析时原样返回。
+    """
+    raw = str(short_name).strip()
+    s = re.sub(r"^\d+", "", raw)
+    if "债" in s:
+        head = s.split("债", 1)[0]
+    else:
+        m = re.match(r"^[^\d]+", s)
+        head = m.group(0) if m else s
+    head = re.sub(r"[（(].*?[）)]", "", head).strip()
     while True:
-        for suf in ("续发", "债", "续"):
+        for suf in ("续发", "续"):
             if head.endswith(suf) and len(head) > len(suf):
                 head = head[: -len(suf)].strip()
                 break
         else:
             break
-    return head or str(short_name)
+    return head or raw
 
 
 def _term_sort_key(term):
@@ -507,18 +515,19 @@ def _fmt_amount(v) -> str:
 
 
 def make_local_text(result, word: str = "本周") -> str:
-    """地方债"待发行"播报文本（2026-10-09 按真实样例二次修正）：
+    """地方债"待发行"播报文本（2026-11-01 格式调整）：
 
-        *本周地方债待发行*【532.3463亿】
+        *本周地方债待发行*【532.3463 亿】
 
         9/24
-        江西261.5820亿（5Y 7Y 10Y 20Y 30Y）
+        江西 261.5820 亿（5Y 7Y 10Y 20Y 30Y）
 
-    · 头行【】= 全表发行量合计，**固定 4 位小数**；word 可切换"本周/今日"；
+    · 头行【】= 全表发行量合计，**固定 4 位小数**，金额与「亿」之间留空格；
     · 按发行日升序分组（组头 M/D 不补零），组间空一行；
-    · 同日同地区**合并为一行**：地区短名 + 当日合计金额（4 位小数）
-      +（当日各券期限，去重后按数值升序、空格分隔）；期限为空不带括号；
-    · 文本与表格均按发行日升序（2026-10-09 v0.10 起表格标黄行不再置顶）。
+    · 同日同地区**合并为一行**：地区短名 + 空格 + 当日合计金额（4 位小数）
+      + 空格 +「亿」+（当日各券期限，去重后按数值升序、空格分隔）；
+    · 期限里的括号备注（如 `30Y(18.0127)`）只保留 `30Y`；
+    · 文本与表格均按发行日升序。
     """
     if result is None or len(result) == 0:
         return ""
@@ -528,7 +537,7 @@ def make_local_text(result, word: str = "本周") -> str:
     if df.empty:
         return ""
     total = pd.to_numeric(df["发行量(亿)"], errors="coerce").fillna(0).sum()
-    lines = [f"*{word}地方债待发行*【{total:.4f}亿】"]
+    lines = [f"*{word}地方债待发行*【{total:.4f} 亿】"]
     for d, grp in df.groupby("__d", sort=True):
         m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", d)
         head = f"{int(m.group(2))}/{int(m.group(3))}" if m else d
@@ -538,10 +547,14 @@ def make_local_text(result, word: str = "本周") -> str:
         g2["__r"] = g2["债券简称"].map(region_short)
         for region, g in g2.groupby("__r", sort=False):  # sort=False 保持源表首次出现顺序
             amt = pd.to_numeric(g["发行量(亿)"], errors="coerce").fillna(0).sum()
-            terms = sorted({str(t).strip() for t in g["期限"] if str(t).strip()},
-                           key=_term_sort_key)
+            terms = set()
+            for term in g["期限"]:
+                text = re.sub(r"[（(].*?[）)]", "", str(term)).strip()
+                if text:
+                    terms.add(text)
+            terms = sorted(terms, key=_term_sort_key)
             per = f"（{' '.join(terms)}）" if terms else ""
-            lines.append(f"{region}{amt:.4f}亿{per}")
+            lines.append(f"{region} {amt:.4f} 亿{per}")
     return "\n".join(lines)
 
 
