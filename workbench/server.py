@@ -650,26 +650,16 @@ class _Handler(BaseHTTPRequestHandler):
             self.manager.shutdown()
         except Exception:  # noqa: BLE001
             _logger.exception("重启前停止子进程失败")
+        if sys.platform != "darwin":
+            # Windows 的 os.execv 不是真正的替换，容易抢不到原端口；交给用户手动重启。
+            _logger.info("Windows 请手动重启工作台")
+            return
         script = str(self.config.base_dir / "start.py")
-        args = [sys.executable, script, *sys.argv[1:]]
         try:
-            if sys.platform == "win32":
-                flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-                subprocess.Popen(
-                    args, cwd=str(self.config.base_dir), creationflags=flags,
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            else:
-                subprocess.Popen(
-                    args, cwd=str(self.config.base_dir), start_new_session=True,
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+            os.chdir(str(self.config.base_dir))
+            os.execv(sys.executable, [sys.executable, script, *sys.argv[1:]])
         except Exception:  # noqa: BLE001
             _logger.exception("重启工作台失败")
-            return
-        os._exit(0)
 
     # --------------------------------------------------------------- 响应
     def _host_allowed(self) -> bool:
