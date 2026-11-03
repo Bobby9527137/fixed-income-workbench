@@ -29,7 +29,7 @@ class ConfigError(Exception):
 
 @dataclass
 class ToolSpec:
-    """一个受管工具（制表 / 簿记 / WACC）。"""
+    """一个受管工具（制表 / 簿记 / 报价 / WACC 等）。"""
 
     id: str
     name: str
@@ -42,6 +42,8 @@ class ToolSpec:
     port: int
     health_path: str
     dirs: dict[str, str]
+    # 主列表只展示 primary=True 的工具；其余收进右侧「更多工具」。
+    primary: bool = True
 
 
 @dataclass
@@ -205,7 +207,7 @@ def _build_env(base: Path, env_id: str, raw: Any, platform_key: str) -> EnvSpec:
 def _load_tools(
     base: Path, raw_tools: Any, environments: dict[str, EnvSpec]
 ) -> dict[str, ToolSpec]:
-    # tools 是四个交付工具的唯一事实来源，缺失/为空一律报错，避免加载出“空工作台”。
+    # tools 是全部交付工具的唯一事实来源，缺失/为空一律报错，避免加载出“空工作台”。
     if raw_tools is _MISSING or raw_tools is None or raw_tools == []:
         raise ConfigError("tools 缺失或为空")
     if not isinstance(raw_tools, list):
@@ -244,6 +246,10 @@ def _build_tool(base: Path, raw: Any, index: int) -> ToolSpec:
     if not isinstance(desc, str):
         raise ConfigError(f"{where} 的 desc 必须是字符串")
 
+    primary = entry.get("primary", True)
+    if not isinstance(primary, bool):
+        raise ConfigError(f"{where} 的 primary 必须是布尔值")
+
     return ToolSpec(
         id=tool_id,
         name=_expect_str(entry.get("name"), f"{where} 的 name"),
@@ -256,6 +262,7 @@ def _build_tool(base: Path, raw: Any, index: int) -> ToolSpec:
         port=_expect_port(entry.get("port"), f"{where} 的 port"),
         health_path=health_path,
         dirs=_expect_str_map(entry.get("dirs", {}), f"{where} 的 dirs"),
+        primary=primary,
     )
 
 

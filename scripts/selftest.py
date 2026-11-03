@@ -2,7 +2,7 @@
 
 用法（在交付包根目录）：
 
-    python scripts/selftest.py                 # 四个工具全跑
+    python scripts/selftest.py                 # 十二个工具全跑
     python scripts/selftest.py --tool wacc     # 只跑一个（可重复）
     python scripts/selftest.py --no-bootstrap  # 跳过环境安装（环境已就绪时更快）
 

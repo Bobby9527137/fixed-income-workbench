@@ -1,15 +1,14 @@
-# 固收工作台（macOS）
+# 固收工作台
 
-把十一个固定收益小工具收进一个本地入口：一次双击、一个页面、统一启停。
+把十二个固定收益工具收进一个本地入口：
 
-> **直接下载：** [固收工作台 v0.2.2 · macOS (Apple Silicon)](https://github.com/Bobby9527137/fixed-income-workbench/releases/tag/v0.2.2)
-
-| 工具 | 作用 |
+| 工具 | 说明 |
 |---|---|
 | 境内债制表 | 地方债 / 信用债原始表 → 标准制表 + 待发行播报 |
 | 投标簿记提取 | 投标量表截图 + 债券文本行 → 标准簿记文案 |
-| WACC 批量计算 | 上传表格或手动录入，批量计算加权平均资本成本 |
-| 上市要素整理 | 任意排版的要素文本 → 固定模版 |
+| 报价要素生成 | 交易行文本 + DM 截图 → 一行固定格式报价 |
+| WACC 批量计算 | 上传表格或手动录入，批量算加权平均资本成本 |
+| 上市要素整理 | 任意排版的要素文本 → 固定模版（纯本地规则） |
 | 债券计算器 | 净价/全价、YTM、久期、凸性、DV01、持有期情景 |
 | 回购/资金计算器 | 回购到期金额、实际资金成本、质押券与杠杆 |
 | 现金流/付息日历 | 持仓表 → 未来付息/兑付明细与年度汇总 |
@@ -18,111 +17,72 @@
 | 投标/中标统计 | 按债券汇总投标量、加权利率、中标率 |
 | 交易要素提取 | 交易聊天文本 → 结构化台账 + Excel |
 
-## 特点
+- 只在本机运行（`127.0.0.1`），除可关闭的 GitHub 更新检查外**不联网**，不上传任何数据。
+- 十二个工具各自独立：工作台只负责启动/停止/打开，**不打通数据**；工具在浏览器独立标签页使用。右侧上半显示运行中的工具，下半收纳较少用的计算/整理工具。
+- 统一浅色主题：工作台固定白底，子进程通过 `STREAMLIT_THEME_BASE=light` 让 Streamlit 工具也保持白底。
+- 工作台本体只用 Python 标准库，前端无框架、无 CDN。
+- **自动更新**：启动后检查 GitHub Release；版本号旁显示「暂无更新 / 有新版本」，确认后下载增量包覆盖并重启。
+- 主交付 macOS（Apple Silicon，macOS 11+）；Windows 版用于回归验证。
 
-- **纯本地**：只监听 `127.0.0.1`；除可关闭的 GitHub 更新检查外不访问网络，不上传任何数据。
-- **离线自举**：内置 Python + 本地 wheelhouse，首次运行不需要联网。
-- **单实例**：重复双击只会打开已有页面，不会起第二份。
-- **环境自愈**：依赖缺失或损坏时自动重建，不需要手工 pip。
-- **零框架前端**：原生 HTML/CSS/JS，无 CDN、无网络字体、无构建步骤。
-- **工作台本体只用 Python 标准库**。
-- **随机示例**：每个工具都能一键生成随机输入并自动跑一遍，用来检查输出是否正常。
-- **自检与报告**：工作台和每个工具都有自检；能自动修的立即修，修不了的在本地生成标准报告，你确认后再转发。
-- **自动更新**：启动后检查 GitHub Release，版本号旁显示「暂无更新 / 有新版本」；确认后下载增量包覆盖并重启。
-
-## 下载与运行
-
-1. 到 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.2.2.zip`。
-2. 解压到本地目录（桌面、「应用程序」等均可）。
-3. 首次运行：在 Finder 里**右键** `启动工作台.command` → **打开** → 再点一次**打开**。
-4. 首次启动会解压内置 Python 并创建运行环境，约 1–3 分钟；之后双击秒开。
-
-要求：**Apple Silicon（arm64）**，macOS 11 及以上。
-
-> 如果双击被系统拦下，是 Gatekeeper 对下载脚本的常规隔离。右键打开一次即可；详见 [docs/使用说明.md](docs/使用说明.md)。
-
-## 更新（只下小包）
-
-已经装过旧版时，不用再下载 200 MB：
-
-1. 退出工作台。
-2. 到 Releases 下载 `fixed-income-workbench-update-vX.Y.Z.zip`（通常几十 KB）。
-3. 解压后把文件拖进原来的工作台文件夹，选择「替换 / 合并」。
-4. 重新双击 `启动工作台.command`。
-
-`runtime/` 会保留，内置 Python 和依赖不需要重装。详见 [docs/更新说明.md](docs/更新说明.md)。
-
-## 仓库内容
-
-本仓库是 **macOS 发行版的源码快照**，包含工作台与十一个工具的源码、macOS 启动器、依赖钉版和文档。
-
-**不包含**（都在 Release 压缩包里）：
-
-- 内置 Python 运行时（约 25 MB）
-- macOS wheelhouse（约 179 MB）
-- 打包好的 zip
+## 目录
 
 ```
-.
-├── 启动工作台.command        # macOS 双击入口
-├── 诊断报告.command          # 一键生成诊断报告
-├── start.py                  # 单实例 / 端口 / 信号 / 桌面快捷方式
-├── tools.json                # 十一个工具与环境配置
-├── workbench/                # 工作台本体
-├── 境内债制表工具/
-├── bidbook_tool/
-├── wacc-tool/
-├── 上市要素整理/
-├── 固收工具箱/                # 七个计算/整理工具共享内核
-├── requirements/             # 钉版依赖（macOS）
-├── scripts/                  # 端到端自检 + 输入材料验收矩阵
-└── docs/
+固收工作台/
+├── 启动工作台.command     # macOS 双击入口
+├── 启动工作台.bat         # Windows 双击入口
+├── 诊断报告.command       # 生成诊断报告
+├── start.py               # 启动逻辑（单实例、锁、信号清理）
+├── tools.json             # 十二个工具的配置（端口 / 入口 / 输出目录）
+├── workbench/             # 工作台本体（config/ports/manager/bootstrap/server/web/...）
+├── requirements/          # 钉版依赖（mac / win 各两份）
+├── scripts/selftest.py    # 端到端自检
+├── build/                 # 构建脚本（抓 wheel / 校验 / staging / 打包）
+├── tests/                 # unittest（纯标准库）
+├── docs/使用说明.md        # 用户手册（含 Gatekeeper 图文步骤与 Mac 验收清单）
+└── runtime/               # 运行期依赖（内置 Python 与 wheelhouse，打包用）
 ```
 
-## 端口
+## 使用
 
-| 用途 | 默认端口 |
-|---|---|
-| 工作台 | 8787 |
-| 境内债制表 | 8511 |
-| 投标簿记提取 | 8765 |
-| WACC 批量计算 | 8512 |
-| 上市要素整理 | 8513 |
-| 债券计算器 | 8514 |
-| 回购/资金计算器 | 8515 |
-| 现金流/付息日历 | 8516 |
-| 组合风险快照 | 8517 |
-| 国债期货基差 | 8518 |
-| 投标/中标统计 | 8519 |
-| 交易要素提取 | 8520 |
+普通用户请看 **[docs/使用说明.md](docs/使用说明.md)**。
 
-端口被占用时自动顺延，最多尝试 20 个。
+维护者 / 想加新工具的人请看 **[docs/交接说明.md](docs/交接说明.md)**；
+AI 模型请先读 **[AGENTS.md](AGENTS.md)**。首次运行会在 macOS 桌面自动生成一个直达快捷方式。
 
-## 单独运行某个工具
+## 开发 / 构建
 
-四个工具都可以脱离工作台单独启动，例如：
+```powershell
+# 全部测试（Windows 本机用 Python 3.11）
+py -3.11 -m unittest discover -v
 
-```bash
-# 上市要素整理（纯标准库，零依赖）
-python3 上市要素整理/app.py --port 8513
+# 抓 wheel（构建期联网，固定走阿里云镜像）
+py -3.11 build/build_wheels.py --requirements requirements/streamlit-mac.txt `
+  --out runtime/wheels/macos-arm64-cp312 `
+  --platform macosx_11_0_arm64 --python-version 3.12 --abi cp312
 
-# 投标簿记提取
-cd bidbook_tool && bash run.sh
+# 校验 wheelhouse（离线，含依赖闭包干跑）
+py -3.11 build/verify_bundle.py --wheelhouse runtime/wheels/macos-arm64-cp312 `
+  --requirements requirements/streamlit-mac.txt `
+  --platform macosx_11_0_arm64 --python-version 3.12 --abi cp312
 
-# Streamlit 工具
-cd 境内债制表工具 && python3 -m streamlit run scripts/app.py
-cd wacc-tool && python3 -m streamlit run app.py
+# 下载内置 Python（可选：也可以直接放 tar.gz）
+py -3.11 build/fetch_python.py --dest runtime/python
+
+# 生成 staging 并打 zip
+py -3.11 build/stage.py --platform darwin
+py -3.11 build/make_bundle.py --stage build/stage-mac/固收工作台 `
+  --out dist/固收工作台-macOS-arm64.zip
+
+# 端到端自检（起真实工具 → 等就绪 → 停止 → 验证端口释放）
+py -3.11 scripts/selftest.py --timeout 240
 ```
 
-## 文档
+## 设计要点
 
-- [使用说明](docs/使用说明.md) —— 给最终用户
-- [交接说明](docs/交接说明.md) —— 目录地图、配置契约、加工具、打包
-- [竞品与改进](docs/竞品与改进.md)
+- **单实例**：`workbench.lock` + `/api/ping` 复验 + `launch.lock` 原子占位；第二次双击只开页面。
+- **归属模型**：`self` / `orphan`（上次残留，可停）/ `external`（不是我们起的，拒绝停止）。
+- **离线自举**：内置 Python → venv → `pip install --no-index --find-links`，失败可重建。
+- **端口**：工作台 8787 / 制表 8511 / 簿记 8765 / 报价 8766 / WACC 8512，被占顺延最多 20 个。
+- **安全**：只绑 `127.0.0.1`；校验 `Host` 与 `Origin`；探测绕系统代理、禁重定向。
 
-## 已知限制
-
-- 发行包只针对 Apple Silicon；Intel Mac 需要自行准备 x86_64 的 Python 与 wheelhouse。
-- macOS 真机的人工验收清单见 [docs/使用说明.md](docs/使用说明.md) 末尾。
-- 工作台不内嵌工具页面，各工具在独立浏览器标签页中打开。
-- 上市要素整理一次处理一只债；机构名靠后缀识别，无后缀简称需手动补。
+设计与实施记录见 `docs/superpowers/`。

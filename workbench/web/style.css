@@ -548,42 +548,117 @@ textarea {
 .stage {
   display: flex;
   flex-direction: column;
+  gap: 14px;
   min-height: 480px;
   padding: 14px;
 }
 
-.reserved-stage {
+.stage-block {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  min-height: 420px;
-  padding: 28px;
+  min-width: 0;
+}
+
+.stage-block + .stage-block {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.running-tools,
+.more-tools {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
   background: var(--surface-soft);
-  border: 1px dashed var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: var(--radius-small);
-  text-align: center;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 
-.reserved-title {
+.tool-row:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
+.tool-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.tool-row-name {
   color: var(--text-strong);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.reserved-hint {
-  max-width: 34em;
-  color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
 
-.reserved-note {
-  margin-top: 2px;
+.tool-row-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.tool-row-desc {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.tool-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-row-port {
+  font-weight: 600;
+}
+
+.tool-row-owned {
+  color: var(--warn);
+}
+
+.tool-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 240px;
+}
+
+.tool-row-actions .btn {
+  min-height: 28px;
+  padding: 3px 9px;
+  font-size: 12px;
+}
+
+.tool-row .tool-error {
+  margin-top: 8px;
 }
 
 .footer {
@@ -773,10 +848,6 @@ textarea {
     min-height: 460px;
   }
 
-  .reserved-stage {
-    min-height: 380px;
-  }
-
   .bootstrap-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -815,9 +886,18 @@ textarea {
     padding: 11px;
   }
 
-  .reserved-stage {
-    min-height: 320px;
-    padding: 18px;
+  .stage-block + .stage-block {
+    padding-top: 10px;
+  }
+
+  .tool-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tool-row-actions {
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .tool-head {

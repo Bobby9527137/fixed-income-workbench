@@ -50,15 +50,25 @@
         <p id="tool-empty" class="empty-note" hidden>没有可用的工具配置。</p>
       </aside>
 
-      <section class="stage" aria-label="工具界面预留区域">
-        <div class="reserved-stage">
-          <p class="reserved-title">工具界面预留区域</p>
-          <p class="reserved-hint">
-            当前版本请点卡片上的「打开」，在浏览器新标签页里使用工具。
+      <section class="stage" aria-label="运行中工具与更多工具">
+        <div class="stage-block running-block" aria-labelledby="running-title">
+          <div class="section-head">
+            <h2 id="running-title" class="section-title">运行中</h2>
+            <p class="section-note">已启动的工具会集中显示在这里</p>
+          </div>
+          <div id="running-tools" class="running-tools" aria-live="polite"></div>
+          <p id="running-empty" class="empty-note">
+            还没有正在运行的工具。在左侧卡片上点「启动」即可。
           </p>
-          <p class="reserved-note">
-            这里已为下一版的内嵌界面预留位置，暂时保持留白。
-          </p>
+        </div>
+
+        <div class="stage-block more-block" aria-labelledby="more-title">
+          <div class="section-head">
+            <h2 id="more-title" class="section-title">更多工具</h2>
+            <p class="section-note">较少用的计算与整理工具，需要时直接启动</p>
+          </div>
+          <div id="more-tools" class="more-tools" aria-live="polite"></div>
+          <p id="more-empty" class="empty-note" hidden>没有更多工具。</p>
         </div>
       </section>
     </main>

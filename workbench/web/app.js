@@ -46,6 +46,8 @@ let lastState = null;
 let lastTools = [];
 let lastLegacy = false;
 let toolOrderKey = null;
+let runningOrderKey = null;
+let moreOrderKey = null;
 let selectedToolId = null;
 let stateRequestInFlight = false;
 let stateRefreshQueued = false;
@@ -57,6 +59,8 @@ let fileHintPath = "";
 let updateInfo = null;
 
 const cards = new Map();
+const runningRows = new Map();
+const moreRows = new Map();
 const pendingActions = new Map();
 const startingSince = new Map();
 
@@ -84,7 +88,11 @@ function cacheElements() {
     bootstrapSteps: document.getElementById("bootstrap-steps"),
     toolList: document.getElementById("tool-list"),
     toolEmpty: document.getElementById("tool-empty"),
-    reservedStage: document.querySelector(".reserved-stage"),
+    stage: document.querySelector(".stage"),
+    runningTools: document.getElementById("running-tools"),
+    runningEmpty: document.getElementById("running-empty"),
+    moreTools: document.getElementById("more-tools"),
+    moreEmpty: document.getElementById("more-empty"),
     recentFiles: document.getElementById("recent-files"),
     fileHint: document.getElementById("file-hint"),
     openDir: document.getElementById("open-dir"),
@@ -254,19 +262,48 @@ function setSummary(text) {
   setText(elements.statusSummary, text);
 }
 
+const ACTIVE_STATES = new Set(["starting", "running", "stopping"]);
+
+function isPrimaryTool(tool) {
+  return !tool || tool.primary !== false;
+}
+
+function isActiveTool(tool) {
+  return ACTIVE_STATES.has(normalizeState(tool && tool.state));
+}
+
 function renderTools(tools, legacy) {
   lastTools = tools;
   lastLegacy = legacy;
 
-  const ids = tools.map((tool) => String(tool.id));
-  const orderKey = ids.join("\u0001");
-  if (orderKey !== toolOrderKey) {
-    toolOrderKey = orderKey;
-    rebuildToolList(tools);
+  const primaryTools = tools.filter(isPrimaryTool);
+  const secondaryTools = tools.filter((tool) => !isPrimaryTool(tool));
+  const runningTools = tools.filter(isActiveTool);
+  const idleSecondary = secondaryTools.filter((tool) => !isActiveTool(tool));
+
+  const primaryKey = primaryTools.map((tool) => String(tool.id)).join("\u0001");
+  if (primaryKey !== toolOrderKey) {
+    toolOrderKey = primaryKey;
+    rebuildToolList(primaryTools);
+  }
+  const runningKey = runningTools.map((tool) => String(tool.id)).join("\u0001");
+  if (runningKey !== runningOrderKey) {
+    runningOrderKey = runningKey;
+    rebuildRunningList(runningTools);
+  }
+  const moreKey = idleSecondary.map((tool) => String(tool.id)).join("\u0001");
+  if (moreKey !== moreOrderKey) {
+    moreOrderKey = moreKey;
+    rebuildMoreList(idleSecondary);
   }
 
-  elements.toolEmpty.hidden = tools.length !== 0;
-  tools.forEach((tool) => updateCard(tool, legacy));
+  elements.toolEmpty.hidden = primaryTools.length !== 0;
+  elements.runningEmpty.hidden = runningTools.length !== 0;
+  elements.moreEmpty.hidden = idleSecondary.length !== 0;
+
+  primaryTools.forEach((tool) => updateCard(tool, legacy));
+  runningTools.forEach((tool) => updateCompactRow(runningRows, tool));
+  idleSecondary.forEach((tool) => updateCompactRow(moreRows, tool));
 
   if (
     selectedToolId !== null &&
@@ -286,6 +323,25 @@ function rebuildToolList(tools) {
     fragment.append(card.element);
   });
   elements.toolList.replaceChildren(fragment);
+}
+
+function rebuildRunningList(tools) {
+  rebuildCompactList(elements.runningTools, runningRows, tools);
+}
+
+function rebuildMoreList(tools) {
+  rebuildCompactList(elements.moreTools, moreRows, tools);
+}
+
+function rebuildCompactList(container, registry, tools) {
+  const fragment = document.createDocumentFragment();
+  registry.clear();
+  tools.forEach((tool) => {
+    const row = createCompactRow(tool);
+    registry.set(String(tool.id), row);
+    fragment.append(row.element);
+  });
+  container.replaceChildren(fragment);
 }
 
 function createCard(tool) {
@@ -371,6 +427,154 @@ function createCard(tool) {
     legacy,
     actionsSignature: "",
   };
+}
+
+function createCompactRow(tool) {
+  const toolId = String(tool.id);
+
+  const row = document.createElement("article");
+  row.className = "tool-row";
+  row.dataset.toolId = toolId;
+  row.tabIndex = 0;
+  row.setAttribute("role", "group");
+
+  const main = document.createElement("div");
+  main.className = "tool-row-main";
+
+  const title = document.createElement("div");
+  title.className = "tool-row-title";
+  const name = document.createElement("h3");
+  name.className = "tool-row-name";
+  const status = document.createElement("span");
+  status.className = "tool-row-status";
+  const dot = document.createElement("span");
+  dot.className = "status-dot";
+  dot.setAttribute("aria-hidden", "true");
+  const stateText = document.createElement("span");
+  stateText.className = "tool-row-state";
+  status.append(dot, stateText);
+  title.append(name, status);
+
+  const desc = document.createElement("p");
+  desc.className = "tool-row-desc";
+
+  const meta = document.createElement("div");
+  meta.className = "tool-row-meta";
+  const port = document.createElement("span");
+  port.className = "tool-row-port";
+  const owned = document.createElement("span");
+  owned.className = "tool-row-owned";
+  owned.hidden = true;
+  meta.append(port, owned);
+
+  const errorBox = document.createElement("div");
+  errorBox.className = "tool-error";
+  errorBox.hidden = true;
+  const errorText = document.createElement("p");
+  errorText.className = "tool-error-text";
+  const errorActions = document.createElement("div");
+  errorActions.className = "tool-error-actions";
+  const logButton = document.createElement("button");
+  logButton.type = "button";
+  logButton.className = "btn btn-small";
+  logButton.dataset.action = "logs";
+  logButton.textContent = "查看日志";
+  errorActions.append(logButton);
+  errorBox.append(errorText, errorActions);
+
+  main.append(title, desc, meta, errorBox);
+
+  const actions = document.createElement("div");
+  actions.className = "tool-row-actions";
+
+  row.append(main, actions);
+  row.addEventListener("click", (event) => onCardClick(event, toolId));
+  row.addEventListener("keydown", (event) => {
+    if (event.target !== row) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    selectTool(toolId);
+  });
+
+  return {
+    element: row,
+    name,
+    desc,
+    dot,
+    stateText,
+    port,
+    owned,
+    errorBox,
+    errorText,
+    actions,
+    actionsSignature: "",
+  };
+}
+
+function updateCompactRow(registry, tool) {
+  const toolId = String(tool.id);
+  const refs = registry.get(toolId);
+  if (!refs) return;
+
+  const state = normalizeState(tool.state);
+  const description =
+    typeof tool.desc === "string" ? tool.desc.trim() : "";
+  const errorMessage = typeof tool.error === "string" ? tool.error.trim() : "";
+  const external = tool.owned === "external";
+  const orphan = tool.owned === "orphan";
+
+  setText(refs.name, displayName(tool));
+  refs.element.setAttribute(
+    "aria-label",
+    `${displayName(tool)}，${STATE_LABELS[state] || STATE_LABELS.unknown}，按回车打开`
+  );
+  setText(refs.desc, description);
+  refs.desc.hidden = description === "";
+  setText(refs.stateText, STATE_LABELS[state] || STATE_LABELS.unknown);
+  refs.dot.className = `status-dot status-${state}`;
+  setText(refs.port, `端口 ${formatPort(tool.port)}`);
+
+  refs.owned.hidden = !external && !orphan;
+  setText(
+    refs.owned,
+    external ? "外部实例（不可停）" : orphan ? "上次残留（可停）" : ""
+  );
+
+  const showError = state === "error";
+  refs.errorBox.hidden = !showError;
+  if (showError) {
+    const tail = tailLines(errorMessage, MAX_ERROR_LINES);
+    setText(refs.errorText, tail || "工具启动失败，请查看日志。");
+  }
+
+  if (state === "starting") {
+    if (!startingSince.has(toolId)) {
+      startingSince.set(toolId, Date.now());
+    }
+  } else {
+    startingSince.delete(toolId);
+  }
+
+  const seconds = state === "starting" ? startingSeconds(tool) : 0;
+  const pending = pendingActions.get(toolId) || "";
+  const signature = [
+    state,
+    pending,
+    String(seconds),
+    String(tool.owned || ""),
+    String(tool.url || ""),
+  ].join("|");
+
+  if (refs.actionsSignature !== signature) {
+    refs.actionsSignature = signature;
+    renderActions(refs.actions, tool, {
+      toolId,
+      state,
+      external,
+      seconds,
+      pending,
+    });
+  }
 }
 
 function onCardClick(event, toolId) {
@@ -1403,8 +1607,8 @@ function markExited() {
   document.querySelectorAll("button").forEach((button) => {
     button.disabled = true;
   });
-  if (elements.reservedStage) {
-    elements.reservedStage.classList.add("is-exited");
+  if (elements.stage) {
+    elements.stage.classList.add("is-exited");
   }
   document.title = "固收工作台（已退出）";
 }

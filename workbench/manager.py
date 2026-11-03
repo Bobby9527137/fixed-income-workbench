@@ -373,6 +373,7 @@ class ToolManager:
             "waited": round(record.waited, 1),
             "started_at": record.started_at,
             "environment": record.spec.environment,
+            "primary": record.spec.primary,
             "dirs": dict(record.spec.dirs),
         }
 

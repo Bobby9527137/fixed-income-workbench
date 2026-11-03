@@ -108,6 +108,23 @@
       "dirs": {}
     },
     {
+      "id": "quoteline",
+      "name": "报价要素生成",
+      "desc": "交易行文本 + DM 截图 → 一行固定格式报价",
+      "root": "./bidbook_tool",
+      "kind": "python-entry",
+      "entry": "quote_line.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "bidbook",
+      "port": 8766,
+      "healthPath": "/",
+      "dirs": {}
+    },
+    {
       "id": "wacc",
       "name": "WACC 批量计算",
       "desc": "上传表格或手动录入，批量算加权平均资本成本",
@@ -137,8 +154,26 @@
       "dirs": {}
     },
     {
+      "id": "tradeextract",
+      "name": "交易要素提取",
+      "desc": "交易聊天文本 → 结构化台账 + Excel",
+      "root": "./固收工具箱",
+      "kind": "python-entry",
+      "entry": "apps/trade_extract.py",
+      "args": [
+        "--port",
+        "{port}",
+        "--no-browser"
+      ],
+      "environment": "toolbox",
+      "port": 8520,
+      "healthPath": "/api/health",
+      "dirs": {}
+    },
+    {
       "id": "bondcalc",
       "name": "债券计算器",
+      "primary": false,
       "desc": "净价/全价、YTM、久期、凸性、DV01、持有期情景",
       "root": "./固收工具箱",
       "kind": "python-entry",
@@ -156,6 +191,7 @@
     {
       "id": "repo",
       "name": "回购/资金计算器",
+      "primary": false,
       "desc": "质押式回购到期金额、实际资金成本、质押券与杠杆",
       "root": "./固收工具箱",
       "kind": "python-entry",
@@ -173,6 +209,7 @@
     {
       "id": "cashflow",
       "name": "现金流/付息日历",
+      "primary": false,
       "desc": "从持仓表生成未来付息、兑付、应计利息和年度汇总",
       "root": "./固收工具箱",
       "kind": "python-entry",
@@ -190,6 +227,7 @@
     {
       "id": "portfoliorisk",
       "name": "组合风险快照",
+      "primary": false,
       "desc": "加权久期、总 DV01、评级/行业集中度、±利率情景",
       "root": "./固收工具箱",
       "kind": "python-entry",
@@ -207,6 +245,7 @@
     {
       "id": "futuresbasis",
       "name": "国债期货基差",
+      "primary": false,
       "desc": "CTD 基差、净基差、IRR、DV01 对冲手数",
       "root": "./固收工具箱",
       "kind": "python-entry",
@@ -224,6 +263,7 @@
     {
       "id": "bidstats",
       "name": "投标/中标统计",
+      "primary": false,
       "desc": "按债券汇总投标量、加权利率、中标量与中标率",
       "root": "./固收工具箱",
       "kind": "python-entry",
@@ -235,23 +275,6 @@
       ],
       "environment": "toolbox",
       "port": 8519,
-      "healthPath": "/api/health",
-      "dirs": {}
-    },
-    {
-      "id": "tradeextract",
-      "name": "交易要素提取",
-      "desc": "交易聊天文本 → 结构化台账 + Excel",
-      "root": "./固收工具箱",
-      "kind": "python-entry",
-      "entry": "apps/trade_extract.py",
-      "args": [
-        "--port",
-        "{port}",
-        "--no-browser"
-      ],
-      "environment": "toolbox",
-      "port": 8520,
       "healthPath": "/api/health",
       "dirs": {}
     }
