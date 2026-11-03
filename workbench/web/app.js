@@ -1153,9 +1153,24 @@ async function restartWorkbench() {
   } catch (error) {
     // 服务端会主动退出，连接中断是预期情况。
   }
-  window.setTimeout(() => {
-    window.location.reload();
-  }, 2500);
+  // Windows 由辅助进程等旧进程退出后再拉起，给端口释放留一点时间，
+  // 然后轮询 /api/ping，避免固定 2.5 秒刷新到还没起来的页面。
+  await new Promise((resolve) => window.setTimeout(resolve, 2500));
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch("/api/ping", { cache: "no-store" });
+      if (response.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch (error) {
+      // 新进程还没起来，继续等。
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 800));
+  }
+  elements.updateProgress.textContent = "重启超时，请手动重新打开工作台。";
+  button.disabled = false;
 }
 
 function renderBootstrap(environments) {

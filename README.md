@@ -2,7 +2,7 @@
 
 把十二个固定收益小工具收进一个本地入口：一次双击、一个页面、统一启停。
 
-> **直接下载：** [固收工作台 v0.2.3 · macOS (Apple Silicon)](https://github.com/Bobby9527137/fixed-income-workbench/releases/tag/v0.2.3)
+> **直接下载：** [固收工作台 v0.2.4 · macOS (Apple Silicon)](https://github.com/Bobby9527137/fixed-income-workbench/releases/tag/v0.2.4)
 
 | 工具 | 作用 |
 |---|---|
@@ -34,7 +34,7 @@
 
 ## 下载与运行
 
-1. 从 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.2.3.zip`。
+1. 从 **[Releases](https://github.com/Bobby9527137/fixed-income-workbench/releases/latest)** 下载 `fixed-income-workbench-macOS-arm64-v0.2.4.zip`。
 2. 解压到本地目录（桌面、「应用程序」等均可）。
 3. 首次运行：在 Finder 里**右键** `启动工作台.command` → **打开** → 再点一次**打开**。
 4. 首次启动会解压内置 Python 并创建运行环境，约 1–3 分钟；之后双击秒开。
@@ -48,11 +48,17 @@
 已经装过旧版时，不用再下整包：
 
 1. 退出工作台。
-2. 从 Releases 下载 `fixed-income-workbench-update-vX.Y.Z.zip`（v0.2.3 约 124 KB）。
+2. 从 Releases 下载对应平台的增量包：
+   - macOS：`fixed-income-workbench-update-v0.2.4.zip`（约 32 KB）
+   - Windows：`fixed-income-workbench-update-windows-x64-v0.2.4.zip`（约 32 KB）
 3. 解压后把文件拖进原来的工作台文件夹，选择「替换 / 合并」。
-4. 重新双击 `启动工作台.command`。
+4. 重新双击 `启动工作台.command`（Windows 双击 `启动工作台.bat`）。
 
 `runtime/` 会保留，内置 Python 和依赖不需要重装。详见 [docs/更新说明.md](docs/更新说明.md)。
+
+> **注意**：v0.2.2 / v0.2.3 的下载逻辑走 `github.com`，在部分网络下无法下载更新包。
+> 如果你现在装的是这两个版本，请先手动下载 v0.2.4 完整包覆盖安装一次；之后自动更新即可正常工作。
+> v0.2.4 改用 GitHub API 资产端点下载，并支持 Windows 自动重启。
 
 ## 仓库内容
 

@@ -122,17 +122,18 @@ def _urllib_json(url: str, timeout: float) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _curl_bytes(url: str, timeout: float) -> bytes:
+def _curl_bytes(url: str, timeout: float, accept: str | None = None) -> bytes:
     curl = shutil.which("curl")
     if not curl and Path("/usr/bin/curl").is_file():
         curl = "/usr/bin/curl"
     if not curl:
         raise UpdateError("系统没有 curl，无法检查更新")
+    accept_header = accept or "application/vnd.github+json"
     result = subprocess.run(
         [
             curl, "-fsSL", "--max-time", str(int(timeout)),
             "--proto", "=https", "--tlsv1.2",
-            "-H", "Accept: application/vnd.github+json",
+            "-H", f"Accept: {accept_header}",
             "-H", f"User-Agent: {USER_AGENT}",
             url,
         ],
@@ -157,10 +158,15 @@ def _fetch_json(url: str, timeout: float = 10.0) -> dict:
             raise UpdateError(f"网络请求失败：{first}；curl 兜底也失败：{second}") from second
 
 
-def _fetch_bytes(url: str, timeout: float = 120.0) -> bytes:
+def _fetch_bytes(
+    url: str, timeout: float = 120.0, accept: str | None = None
+) -> bytes:
     _require_https(url)
+    headers = {"User-Agent": USER_AGENT}
+    if accept:
+        headers["Accept"] = accept
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        request = urllib.request.Request(url, headers=headers)
         context = ssl.create_default_context()
         with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
             final = response.geturl()
@@ -168,7 +174,7 @@ def _fetch_bytes(url: str, timeout: float = 120.0) -> bytes:
             return response.read()
     except Exception as first:  # noqa: BLE001
         try:
-            return _curl_bytes(url, timeout)
+            return _curl_bytes(url, timeout, accept=accept)
         except Exception as second:  # noqa: BLE001
             raise UpdateError(f"下载失败：{first}；curl 兜底也失败：{second}") from second
 
@@ -251,6 +257,7 @@ def check(config: Any, force: bool = False) -> dict:
             "name": asset.get("name"),
             "size": asset.get("size"),
             "url": asset.get("browser_download_url"),
+            "api_url": asset.get("url"),
             "digest": asset.get("digest"),
         },
         "checked_at": time.time(),
@@ -273,9 +280,27 @@ def _safe_target(root: Path, relative: str) -> Path:
 
 
 def download_asset(asset: dict, dest: Path) -> Path:
-    url = str(asset.get("url") or "")
+    api_url = str(asset.get("api_url") or "")
+    browser_url = str(asset.get("url") or "")
+    url = api_url or browser_url
+    if not url:
+        raise UpdateError("更新包没有下载地址")
     _require_https(url)
-    data = _fetch_bytes(url)
+    try:
+        # API 资产端点会 302 到 release-assets.githubusercontent.com；
+        # 比 github.com/.../releases/download/... 在国内网络下稳定得多。
+        data = _fetch_bytes(
+            url, accept="application/octet-stream" if api_url else None
+        )
+    except Exception as first:  # noqa: BLE001
+        if not browser_url or browser_url == url:
+            raise
+        try:
+            data = _fetch_bytes(browser_url)
+        except Exception as second:  # noqa: BLE001
+            raise UpdateError(
+                f"下载失败：{first}；备用地址也失败：{second}"
+            ) from second
     expected_size = asset.get("size")
     if isinstance(expected_size, int) and expected_size >= 0 and len(data) != expected_size:
         raise UpdateError(f"更新包大小不符：期望 {expected_size}，实际 {len(data)}")

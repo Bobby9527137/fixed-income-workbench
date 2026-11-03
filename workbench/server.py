@@ -39,6 +39,49 @@ SHUTDOWN_DELAY = 0.2
 APP_NAME = "固收工作台"
 MAX_BODY_BYTES = 1024 * 1024
 
+# Windows 没有真正的 os.execv：先起一个脱离父进程的小助手，等旧进程退出后
+# 用同一个端口重新启动 start.py，避免前端刷新到已经关闭的端口。
+_RESTART_HELPER = r"""
+import ctypes
+import os
+import subprocess
+import sys
+import time
+
+pid = int(sys.argv[1])
+port = int(sys.argv[2])
+base = sys.argv[3]
+
+if os.name == "nt":
+    SYNCHRONIZE = 0x00100000
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+    if handle:
+        kernel32.WaitForSingleObject(handle, 30000)
+        kernel32.CloseHandle(handle)
+else:
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            break
+        time.sleep(0.2)
+
+flags = 0
+if os.name == "nt":
+    flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+subprocess.Popen(
+    [sys.executable, os.path.join(base, "start.py"), "--port", str(port), "--no-browser"],
+    cwd=base,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
+    creationflags=flags,
+    close_fds=True,
+)
+"""
+
 MIME_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -650,16 +693,42 @@ class _Handler(BaseHTTPRequestHandler):
             self.manager.shutdown()
         except Exception:  # noqa: BLE001
             _logger.exception("重启前停止子进程失败")
-        if sys.platform != "darwin":
-            # Windows 的 os.execv 不是真正的替换，容易抢不到原端口；交给用户手动重启。
-            _logger.info("Windows 请手动重启工作台")
+        if sys.platform == "darwin":
+            script = str(self.config.base_dir / "start.py")
+            try:
+                os.chdir(str(self.config.base_dir))
+                os.execv(sys.executable, [sys.executable, script, *sys.argv[1:]])
+            except Exception:  # noqa: BLE001
+                _logger.exception("重启工作台失败")
             return
-        script = str(self.config.base_dir / "start.py")
-        try:
-            os.chdir(str(self.config.base_dir))
-            os.execv(sys.executable, [sys.executable, script, *sys.argv[1:]])
-        except Exception:  # noqa: BLE001
-            _logger.exception("重启工作台失败")
+        if sys.platform == "win32":
+            port = int(self.server.server_address[1])
+            base = str(self.config.base_dir)
+            try:
+                subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-c",
+                        _RESTART_HELPER,
+                        str(os.getpid()),
+                        str(port),
+                        base,
+                    ],
+                    cwd=base,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP
+                        | subprocess.DETACHED_PROCESS
+                    ),
+                    close_fds=True,
+                )
+            except Exception:  # noqa: BLE001
+                _logger.exception("启动重启辅助进程失败")
+                return
+            os._exit(0)
+        _logger.info("当前系统请手动重启工作台")
 
     # --------------------------------------------------------------- 响应
     def _host_allowed(self) -> bool:
